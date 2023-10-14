@@ -1,0 +1,25 @@
+[package]
+name = "graus-db"
+version = "0.1.0"
+authors = ["Ricardo Pallas Roman <rpallas92@gmail.com>"]
+description = "A high-performance, thread-safe key-value embedded data store."
+edition = "2018"
+
+[dependencies]
+clap = "2.33.0"
+crossbeam-skiplist = "0.1"
+env_logger = "0.6.1"
+log = "0.4.6"
+structopt = "0.2.15"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sled = "0.34.6"
+thiserror = "1.0"
+
+[dev-dependencies]
+assert_cmd = "0.11.0"
+criterion = "0.3"
+predicates = "1.0.0"
+rand = "0.6.5"
+tempfile = "3.0.7"
+walkdir = "2.2.7"

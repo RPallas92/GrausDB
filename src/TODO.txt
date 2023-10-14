@@ -1,0 +1,6 @@
+- Tests (multithread tests?)
+- Docs
+- Example of usage
+- Benchmark
+- Sync API (journal)
+- Transactions?

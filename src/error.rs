@@ -1,0 +1,30 @@
+use thiserror::Error;
+use std::io;
+use std::string::FromUtf8Error;
+
+/// Error type for kvs.
+#[derive(Error, Debug)]
+pub enum GrausError {
+    /// IO Error
+    #[error("GrausDB IO error")]
+    Io(#[from] io::Error),
+    /// Removing non-existent key error.
+    #[error("Key not found")]
+    KeyNotFound,
+    /// Serialization or deserialization error.
+    #[error("{0}")]
+    Serde(#[from] serde_json::Error),
+    /// Unexpected command type error.
+    /// It indicated a corrupted log or a program bug.
+    #[error("Unexpected command type")]
+    UnexpectedCommandType,
+    /// Key or value is invalid UTF-8 sequence
+    #[error("UTF-8 error: {0}")]
+    Utf8(#[from] FromUtf8Error),
+    /// Error with a string message
+    #[error("{0}")]
+    StringError(String),
+}
+
+/// Result type for kvs.
+pub type Result<T> = std::result::Result<T, GrausError>;
