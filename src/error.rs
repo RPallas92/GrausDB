@@ -1,6 +1,6 @@
-use thiserror::Error;
 use std::io;
 use std::string::FromUtf8Error;
+use thiserror::Error;
 
 /// Error type for kvs.
 #[derive(Error, Debug)]
@@ -24,6 +24,9 @@ pub enum GrausError {
     /// Error with a string message
     #[error("{0}")]
     StringError(String),
+    /// Predicate passed to update_if was not satisfied.
+    #[error("Predicate not satisfied")]
+    PredicateNotSatisfied,
 }
 
 /// Result type for kvs.

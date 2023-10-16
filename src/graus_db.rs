@@ -1,20 +1,19 @@
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::{collections::HashMap, path::PathBuf};
 use std::ffi::OsStr;
-use std::fs::{File, self, OpenOptions};
-use std::io::{self, SeekFrom, Read, Seek, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::{collections::HashMap, path::PathBuf};
 
 use crossbeam_skiplist::SkipMap;
 use log::error;
 use serde_json::Deserializer;
 
-use crate::{GrausError, Result};
-use crate::io_types::{BufReaderWithPos, BufWriterWithPos};
 use crate::command::{Command, CommandPos};
-
+use crate::io_types::{BufReaderWithPos, BufWriterWithPos};
+use crate::{GrausError, Result};
 
 // If the log reaches 1 MB, trigger a compaction.
 const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
@@ -23,7 +22,7 @@ const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 ///
 /// Key/value pairs are persisted to disk in log files. Log files are named after
 /// monotonically increasing generation numbers with a `log` extension name.
-/// A `BTreeMap` in memory stores the keys and the value locations for fast query.
+/// A `SkipMap` in memory stores the keys and the value locations for fast query.
 ///
 /// ```rust
 /// # use graus_db::{GrausDB, Result};
@@ -66,7 +65,7 @@ impl GrausDB {
         for &log_id in &log_ids {
             let log_path = log_path(&path, log_id);
             let mut reader = BufReaderWithPos::new(File::open(&log_path)?)?;
-            uncompacted += read_log(log_id, &mut reader, &*index)?; // TODO Ricardo mut?
+            uncompacted += read_log(log_id, &mut reader, &*index)?;
             readers.insert(log_id, reader);
         }
 
@@ -99,30 +98,62 @@ impl GrausDB {
     /// Sets the value of a string key to a string.
     ///
     /// If the key already exists, the previous value will be overwritten.
-    pub fn set(&mut self, key: String, value: String) -> Result<()> {
+    pub fn set(&self, key: String, value: String) -> Result<()> {
         self.writer.lock().unwrap().set(key, value)
     }
 
     /// Gets the string value of a given string key.
     ///
     /// Returns `None` if the given key does not exist.
-    pub fn get(&mut self, key: String) -> Result<Option<String>> {
+    pub fn get(&self, key: String) -> Result<Option<String>> {
         if let Some(cmd_pos) = self.index.get(&key) {
             if let Command::Set { value, .. } = self.reader.read_command(*cmd_pos.value())? {
                 Ok(Some(value))
             } else {
                 Err(GrausError::UnexpectedCommandType)
-            }           
+            }
         } else {
             Ok(None)
         }
     }
 
     /// Remove a given key.
-    pub fn remove(&mut self, key: String)  -> Result<()> {
+    pub fn remove(&self, key: String) -> Result<()> {
         self.writer.lock().unwrap().remove(key)
     }
 
+    /// Updates atomically an existing value. If predicate_key and predicate are provided,
+    /// it won´t update the value if the predicate is not satisfied for predicate_key.
+    pub fn update_if<F, P>(
+        &self,
+        key: String,
+        update_fn: F,
+        predicate_key: Option<String>,
+        predicate: Option<P>,
+    ) -> Result<()>
+    where
+        F: FnOnce(String) -> Result<String>,
+        P: FnOnce(String) -> bool,
+    {
+        let mut writer = self.writer.lock().unwrap();
+        let current_value = self.get(key.to_owned())?;
+        let Some(current_value) = current_value else {
+            return Err(GrausError::KeyNotFound);
+        };
+
+        if let (Some(predicate_key), Some(predicate)) = (predicate_key, predicate) {
+            let current_predicate_key_value = self.get(predicate_key)?;
+            let Some(current_predicate_key_value) = current_predicate_key_value else {
+                return Err(GrausError::KeyNotFound);
+            };
+            if !predicate(current_predicate_key_value) {
+                return Err(GrausError::PredicateNotSatisfied);
+            }
+        }
+
+        let updated_value = update_fn(current_value)?;
+        writer.set(key, updated_value)
+    }
 }
 
 /// A single thread reader.
@@ -134,7 +165,7 @@ impl GrausDB {
 struct GrausDbReader {
     path: Arc<PathBuf>,
     safe_point: Arc<AtomicU64>,
-    readers: RefCell<HashMap<u64, BufReaderWithPos<File>>> // TODO Ricardo if each instance uses its own map (see clone) can't we use a mut reference directly? Update: No because GrausDbReader is not mutable (GrausDb does not have a mut reference to GrausDbReader)
+    readers: RefCell<HashMap<u64, BufReaderWithPos<File>>>,
 }
 
 impl GrausDbReader {
@@ -153,21 +184,19 @@ impl GrausDbReader {
                 break;
             }
             readers.remove(&first_log_id);
-
-        }   
+        }
     }
 
     /// Read the log file at the given `CommandPos` and execute a callback.
-    fn read_and<F, R>(&self, cmd_pos: CommandPos, f: F) -> Result<R> 
-    where 
+    fn read_and<F, R>(&self, cmd_pos: CommandPos, f: F) -> Result<R>
+    where
         F: FnOnce(io::Take<&mut BufReaderWithPos<File>>) -> Result<R>,
     {
         self.close_stale_readers();
-        
+
         let mut readers = self.readers.borrow_mut();
         // Since each clone uses its own Map, maybe this log file was not opened in this instance
         if !readers.contains_key(&cmd_pos.log_id) {
-            // TODO Ricardo load it
             let log_path = log_path(&self.path, cmd_pos.log_id);
             let reader = BufReaderWithPos::new(File::open(log_path)?)?;
             readers.insert(cmd_pos.log_id, reader);
@@ -183,7 +212,6 @@ impl GrausDbReader {
             Ok(serde_json::from_reader(cmd_reader)?)
         })
     }
-
 }
 
 impl Clone for GrausDbReader {
@@ -192,7 +220,7 @@ impl Clone for GrausDbReader {
             path: Arc::clone(&self.path),
             safe_point: Arc::clone(&self.safe_point),
             // use a new map
-            readers: RefCell::new(HashMap::new()), 
+            readers: RefCell::new(HashMap::new()),
         }
     }
 }
@@ -207,7 +235,7 @@ struct GrausDbWriter {
 }
 
 impl GrausDbWriter {
-    fn set(&mut self, key: String, value: String) -> Result<()>{
+    fn set(&mut self, key: String, value: String) -> Result<()> {
         let command = Command::set(key, value);
         let pos = self.writer.pos;
         serde_json::to_writer(&mut self.writer, &command)?;
@@ -217,7 +245,11 @@ impl GrausDbWriter {
             if let Some(old_cmd) = self.index.get(&key) {
                 self.uncompacted += old_cmd.value().len;
             }
-            let command_pos = CommandPos {log_id: self.current_log_id, pos, len: self.writer.pos - pos};
+            let command_pos = CommandPos {
+                log_id: self.current_log_id,
+                pos,
+                len: self.writer.pos - pos,
+            };
             self.index.insert(key, command_pos);
         }
 
@@ -227,7 +259,7 @@ impl GrausDbWriter {
         Ok(())
     }
 
-    fn remove(&mut self, key: String)  -> Result<()> {
+    fn remove(&mut self, key: String) -> Result<()> {
         if !self.index.contains_key(&key) {
             return Err(GrausError::KeyNotFound);
         }
@@ -243,7 +275,7 @@ impl GrausDbWriter {
             // so we add its length to `uncompacted`
             self.uncompacted += self.writer.pos - pos;
         }
-        
+
         if self.uncompacted >= COMPACTION_THRESHOLD {
             self.compact()?;
         }
@@ -259,11 +291,12 @@ impl GrausDbWriter {
         let mut compaction_writer = new_log_file(&self.path, compaction_log_id)?;
 
         // Write compacted entries in compaction log
-        let mut new_pos = 0; 
-        for cmd_pos in self.index.iter() { // Removed values are not present in the index so they are not copied into the new log
+        let mut new_pos = 0;
+        for cmd_pos in self.index.iter() {
+            // Removed values are not present in the index so they are not copied into the new log
             let len = self.reader.read_and(*cmd_pos.value(), |mut cmd_reader| {
                 Ok(io::copy(&mut cmd_reader, &mut compaction_writer)?)
-            })?;        
+            })?;
             self.index.insert(
                 cmd_pos.key().clone(),
                 (compaction_log_id, new_pos..new_pos + len).into(),
@@ -293,12 +326,11 @@ impl GrausDbWriter {
             if let Err(e) = fs::remove_file(&log_path) {
                 error!("{:?} cannot be deleted: {}", log_path, e);
             }
-        } 
+        }
         self.uncompacted = 0;
 
         Ok(())
     }
-    
 }
 
 // Returns sorted existing log ids in the given directory (path).
@@ -333,19 +365,30 @@ fn new_log_file(path: &Path, log_id: u64) -> Result<BufWriterWithPos<File>> {
 /// Load the whole log file and store value locations in the index map.
 ///
 /// Returns how many bytes can be saved after a compaction.
-fn read_log(log_id: u64, reader: &mut BufReaderWithPos<File>, index: &SkipMap<String, CommandPos>) -> Result<u64> {
+fn read_log(
+    log_id: u64,
+    reader: &mut BufReaderWithPos<File>,
+    index: &SkipMap<String, CommandPos>,
+) -> Result<u64> {
     let mut pos = reader.seek(SeekFrom::Start(0))?;
     let mut stream = Deserializer::from_reader(reader).into_iter::<serde_json::Value>();
     let mut uncompacted = 0; // number of bytes that can be saved after a compaction.
-    
+
     while let Some(value) = stream.next() {
         let new_pos = stream.byte_offset() as u64;
         let command: Command = serde_json::from_value(value?)?;
         match command {
             Command::Set { key, .. } => {
-                let old_cmd = index.insert(key, CommandPos { log_id, pos, len: new_pos - pos});
+                let old_cmd = index.insert(
+                    key,
+                    CommandPos {
+                        log_id,
+                        pos,
+                        len: new_pos - pos,
+                    },
+                );
                 uncompacted += old_cmd.value().len;
-            },
+            }
             Command::Remove { key } => {
                 if let Some(old_cmd) = index.remove(&key) {
                     uncompacted += old_cmd.value().len;
@@ -354,7 +397,7 @@ fn read_log(log_id: u64, reader: &mut BufReaderWithPos<File>, index: &SkipMap<St
                 // the new "remove" command itself can be deleted in the next compaction.
                 // so we add its length to `uncompacted`.
                 uncompacted += new_pos - pos;
-            },
+            }
         }
 
         pos = new_pos;
@@ -365,6 +408,3 @@ fn read_log(log_id: u64, reader: &mut BufReaderWithPos<File>, index: &SkipMap<St
 fn log_path(dir: &Path, log_id: u64) -> PathBuf {
     dir.join(format!("{}.log", log_id))
 }
-
-
-
