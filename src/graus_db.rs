@@ -35,6 +35,7 @@ const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Clone)]
 pub struct GrausDB {
     // Index that maps every Key to a position in the log
     index: Arc<SkipMap<String, CommandPos>>,
@@ -132,7 +133,7 @@ impl GrausDB {
         predicate: Option<P>,
     ) -> Result<()>
     where
-        F: FnOnce(String) -> Result<String>,
+        F: FnOnce(String) -> String,
         P: FnOnce(String) -> bool,
     {
         let mut writer = self.writer.lock().unwrap();
@@ -151,7 +152,7 @@ impl GrausDB {
             }
         }
 
-        let updated_value = update_fn(current_value)?;
+        let updated_value = update_fn(current_value);
         writer.set(key, updated_value)
     }
 }
