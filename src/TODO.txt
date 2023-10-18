@@ -1,4 +1,5 @@
 - Docs
 - Example of usage
 - Benchmark
+- Range get
 - Sync API (journal)
