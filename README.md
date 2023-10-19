@@ -47,7 +47,7 @@ GrausDB provides a simple and intuitive API for interacting with the key-value s
 use graus_db::{GrausDB, Result};
 
 fn main() -> Result<()> {
-    let mut store = GrausDB::open("my_database")?;
+    let store = GrausDB::open("my_database")?;
     // Your database is now ready to use.
     Ok(())
 }
@@ -63,7 +63,7 @@ The `set` method is used to store a key-value pair in the database.
 use graus_db::{GrausDB, Result};
 
 fn main() -> Result<()> {
-    let mut store = GrausDB::open("my_database")?;
+    let store = GrausDB::open("my_database")?;
     store.set("key".to_owned(), "value".to_owned())?;
     // Key "key" now has the value "value" in the database.
     Ok(())
@@ -81,7 +81,7 @@ The `get` method retrieves the value associated with a given key.
 use graus_db::{GrausDB, Result};
 
 fn main() -> Result<()> {
-    let mut store = GrausDB::open("my_database")?;
+    let store = GrausDB::open("my_database")?;
     store.set("key".to_owned(), "value".to_owned())?;
     
     if let Some(value) = store.get("key".to_owned())? {
@@ -104,7 +104,7 @@ The `remove` method deletes a key and its associated value from the database.
 use graus_db::{GrausDB, Result};
 
 fn main() -> Result<()> {
-    let mut store = GrausDB::open("my_database")?;
+    let store = GrausDB::open("my_database")?;
     store.set("key".to_owned(), "value".to_owned())?;
     store.remove("key".to_owned())?;
     // Key "key" and its value are now removed from the database.
@@ -115,8 +115,9 @@ fn main() -> Result<()> {
 
 ### `update_if`
 
-The `update_if` method updates the value of an existing key atomically, allowing you to provide a custom update function and optional predicate for validation.
+The `update_if` method updates the value of an existing key atomically, allowing you to provide a custom update function. 
 
+An optional predicate can be passed, the value will only be updated if the predicate is satisfied.
 
 #### Example:
 
