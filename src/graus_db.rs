@@ -28,7 +28,7 @@ const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 /// # use graus_db::{GrausDB, Result};
 /// # fn try_main() -> Result<()> {
 /// use std::env::current_dir;
-/// let mut store = GrausDB::open(current_dir()?)?;
+/// let store = GrausDB::open(current_dir()?)?;
 /// store.set("key".to_owned(), "value".to_owned())?;
 /// let val = store.get("key".to_owned())?;
 /// assert_eq!(val, Some("value".to_owned()));
