@@ -30,7 +30,20 @@ let store = GrausDB::open("path")?;
 store.set("key".to_owned(), "value".to_owned())?;
 
 let val = store.get("key".to_owned())?;
+```
 
+It can also be called from multiple threads:
+
+```rust
+let store = GrausDB::open("path")?;
+
+// Calls set method from 8 different threads
+for i in 0..8 {
+    let store = store.clone();
+    thread::spawn(move || {
+        store.set(format!("key{}", i), format!("value{}", i)).unwrap();
+    });
+}
 ```
 
 ## API
@@ -126,6 +139,8 @@ use graus_db::{GrausDB, Result};
 
 fn main() -> Result<()> {
     let key = ¨key1¨;
+    store.set(key.to_owned(), "25".to_owned()).unwrap();
+
     let update_fn = |value: String| {
         let num = value.parse::<i32>().unwrap();
         (num - 1).to_string()
@@ -141,10 +156,10 @@ fn main() -> Result<()> {
             Some(key.to_owned()),
             Some(predicate),
     );
-    // Key "key" now has the value "value" in the database.
+    // Key "key1" now has the value "24" in the database.
+    // The function was applied because the predicate was met (25 > 0)
 }
 ```
-
 
 
 For more details on how to use GrausDB, please refer to the tests.
