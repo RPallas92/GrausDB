@@ -291,6 +291,7 @@ impl GrausDbWriter {
 
         let mut compaction_writer = new_log_file(&self.path, compaction_log_id)?;
 
+        let mut index_with_updated_positions: HashMap<String, CommandPos> = HashMap::new();
         // Write compacted entries in compaction log
         let mut new_pos = 0;
         for cmd_pos in self.index.iter() {
@@ -298,13 +299,18 @@ impl GrausDbWriter {
             let len = self.reader.read_and(*cmd_pos.value(), |mut cmd_reader| {
                 Ok(io::copy(&mut cmd_reader, &mut compaction_writer)?)
             })?;
-            self.index.insert(
+            index_with_updated_positions.insert(
                 cmd_pos.key().clone(),
                 (compaction_log_id, new_pos..new_pos + len).into(),
             );
             new_pos += len;
         }
         compaction_writer.flush()?;
+
+        // Now that all data is written into the new compacted log, we can update the lock-free index
+        for (key, value) in index_with_updated_positions.iter() {
+            self.index.insert(key.clone(), value.clone());
+        }
 
         self.reader
             .safe_point

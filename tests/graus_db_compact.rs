@@ -33,7 +33,11 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
             current_size = new_size;
             continue;
         }
-        // Compaction triggered
+        // Compaction triggered, check content after compaction
+        for key_id in 0..1000 {
+            let key = format!("key{}", key_id);
+            assert_eq!(store.get(key)?, Some(format!("{}", iter)));
+        }
 
         drop(store);
         // reopen and check content
