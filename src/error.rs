@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum GrausError {
     /// IO Error
-    #[error("GrausDB IO error")]
+    #[error("GrausDb IO error")]
     Io(#[from] io::Error),
     /// Removing non-existent key error.
     #[error("Key not found")]

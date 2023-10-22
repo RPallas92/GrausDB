@@ -1,10 +1,10 @@
-use graus_db::{GrausDB, GrausError, Result};
+use graus_db::{GrausDb, GrausError, Result};
 use tempfile::TempDir;
 
 #[test]
 fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     store.set("key1".to_owned(), "value1".to_owned())?;
     store.set("key2".to_owned(), "value2".to_owned())?;
 
@@ -22,7 +22,7 @@ fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
 #[test]
 fn update_if_updates_existing_data_when_no_predicate() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     store.set("key1".to_owned(), "value1".to_owned())?;
 
     store.update_if::<_, fn(String) -> bool>(
@@ -40,7 +40,7 @@ fn update_if_updates_existing_data_when_no_predicate() -> Result<()> {
 fn update_if_returns_predicate_error_when_predicate_is_not_satisfied_for_existing_data(
 ) -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     store.set("key1".to_owned(), "value1".to_owned())?;
     store.set("key2".to_owned(), "value2".to_owned())?;
 
@@ -62,7 +62,7 @@ fn update_if_returns_predicate_error_when_predicate_is_not_satisfied_for_existin
 #[test]
 fn update_if_returns_key_not_found_error_when_data_not_exists() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
 
     let result = store.update_if::<_, fn(String) -> bool>(
         "key1".to_owned(),

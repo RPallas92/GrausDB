@@ -3,13 +3,13 @@ use std::{
     thread,
 };
 
-use graus_db::{GrausDB, Result};
+use graus_db::{GrausDb, Result};
 use tempfile::TempDir;
 
 #[test]
 fn concurrent_set() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     let barrier = Arc::new(Barrier::new(1001));
     for i in 0..1000 {
         let store = store.clone();
@@ -29,7 +29,7 @@ fn concurrent_set() -> Result<()> {
 
     // Open from disk again and check persistent data
     drop(store);
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     for i in 0..1000 {
         assert_eq!(store.get(format!("key{}", i))?, Some(format!("value{}", i)));
     }
@@ -40,7 +40,7 @@ fn concurrent_set() -> Result<()> {
 #[test]
 fn concurrent_get() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     for i in 0..100 {
         store
             .set(format!("key{}", i), format!("value{}", i))
@@ -67,7 +67,7 @@ fn concurrent_get() -> Result<()> {
 
     // Open from disk again and check persistent data
     drop(store);
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     let mut handles = Vec::new();
     for thread_id in 0..100 {
         let store = store.clone();
@@ -92,7 +92,7 @@ fn concurrent_get() -> Result<()> {
 #[test]
 fn concurrent_update_if() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     let barrier = Arc::new(Barrier::new(1001));
     let key = "key1";
     store.set(key.to_owned(), "1001".to_owned()).unwrap();
@@ -143,7 +143,7 @@ fn concurrent_update_if() -> Result<()> {
 
     // Open from disk again and check persistent data
     drop(store);
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
     assert_eq!(store.get(key.to_owned())?, Some("0".to_owned()));
 
     Ok(())

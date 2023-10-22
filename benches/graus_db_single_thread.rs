@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-use graus_db::GrausDB;
+use graus_db::GrausDb;
 use rand::prelude::*;
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn set_bench(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let temp_dir = TempDir::new().unwrap();
-                (GrausDB::open(temp_dir.path()).unwrap(), temp_dir)
+                (GrausDb::open(temp_dir.path()).unwrap(), temp_dir)
             },
             |(store, _temp_dir)| {
                 for i in 1..(1 << 12) {
@@ -28,7 +28,7 @@ fn update_if_bench(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let temp_dir = TempDir::new().unwrap();
-                let store = GrausDB::open(temp_dir.path()).unwrap();
+                let store = GrausDb::open(temp_dir.path()).unwrap();
                 let key = "key1";
                 store.set(key.to_owned(), "3500".to_string()).unwrap();
                 (store, temp_dir, key)
@@ -63,7 +63,7 @@ fn get_bench(c: &mut Criterion) {
     for i in &vec![8, 20] {
         group.bench_with_input(format!("graus_db_get_{}", i), i, |b, i| {
             let temp_dir = TempDir::new().unwrap();
-            let store = GrausDB::open(temp_dir.path()).unwrap();
+            let store = GrausDb::open(temp_dir.path()).unwrap();
             for key_i in 1..(1 << i) {
                 store
                     .set(format!("key{}", key_i), "value".to_string())

@@ -1,4 +1,4 @@
-use graus_db::{GrausDB, Result};
+use graus_db::{GrausDb, Result};
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 #[test]
 fn data_is_compacted_when_limit_reached() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-    let store = GrausDB::open(temp_dir.path())?;
+    let store = GrausDb::open(temp_dir.path())?;
 
     let dir_size = || {
         let entries = WalkDir::new(temp_dir.path()).into_iter();
@@ -41,7 +41,7 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
 
         drop(store);
         // reopen and check content
-        let store = GrausDB::open(temp_dir.path())?;
+        let store = GrausDb::open(temp_dir.path())?;
         for key_id in 0..1000 {
             let key = format!("key{}", key_id);
             assert_eq!(store.get(key)?, Some(format!("{}", iter)));
