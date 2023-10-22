@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
-/// Struct representing a command.
+/// Struct representing a command to the database.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
     Set { key: String, value: String },
@@ -18,11 +18,12 @@ impl Command {
     }
 }
 
+/// Struct representing the position of a command in a given file.
 #[derive(Debug, Clone, Copy)]
 pub struct CommandPos {
-    pub log_id: u64,
-    pub pos: u64,
-    pub len: u64,
+    pub log_id: u64, // the file where the command is stored.
+    pub pos: u64,    // The position of the command's start in the file.
+    pub len: u64,    // The length of the command.
 }
 
 impl From<(u64, Range<u64>)> for CommandPos {
