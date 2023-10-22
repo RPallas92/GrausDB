@@ -17,6 +17,8 @@ use std::{collections::HashMap, path::PathBuf};
 /// monotonically increasing generation numbers with a `log` extension name.
 /// A `SkipMap` in memory stores the keys and the value locations for fast query.
 ///
+/// GrausDb is thead-safe. It can be cloned to use it on new threads.
+///
 /// ```rust
 /// # use graus_db::{GrausDb, Result};
 /// # fn try_main() -> Result<()> {
@@ -30,11 +32,11 @@ use std::{collections::HashMap, path::PathBuf};
 /// ```
 #[derive(Clone)]
 pub struct GrausDb {
-    // Index that maps every Key to a position in the log
+    // Index that maps every Key to a position in a log file.
     index: Arc<SkipMap<String, CommandPos>>,
-    // Writes new data into the file system
+    // Writes new data into the file system logs. Protected by a mutex.
     writer: Arc<Mutex<LogWriter>>,
-    // Reads data from the file system
+    // Reads data from the file system logs.
     reader: LogReader,
 }
 
@@ -111,13 +113,17 @@ impl GrausDb {
         }
     }
 
-    /// Remove a given key.
+    /// Removes a given key.
+    ///
+    /// Returns GrausError::KeyNotFound if the key does not exist.
     pub fn remove(&self, key: String) -> Result<()> {
         self.writer.lock().unwrap().remove(key)
     }
 
-    /// Updates atomically an existing value. If predicate_key and predicate are provided,
-    /// it won´t update the value if the predicate is not satisfied for predicate_key.
+    /// Updates atomically an existing value.
+    ///
+    /// If predicate_key and predicate are provided, it won´t update the value if the predicate
+    /// is not satisfied for predicate_key.
     pub fn update_if<F, P>(
         &self,
         key: String,

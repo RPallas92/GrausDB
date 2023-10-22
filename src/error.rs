@@ -2,7 +2,7 @@ use std::io;
 use std::string::FromUtf8Error;
 use thiserror::Error;
 
-/// Error type for kvs.
+/// Error type for GrausDb.
 #[derive(Error, Debug)]
 pub enum GrausError {
     /// IO Error
@@ -29,5 +29,5 @@ pub enum GrausError {
     PredicateNotSatisfied,
 }
 
-/// Result type for kvs.
+/// Result type for GrausDb.
 pub type Result<T> = std::result::Result<T, GrausError>;

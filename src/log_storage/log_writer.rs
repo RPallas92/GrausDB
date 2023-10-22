@@ -20,6 +20,11 @@ use std::{fs::File, path::PathBuf, sync::Arc};
 // If the log reaches 1 MB, trigger a compaction.
 const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 
+/// A log writer that is used by GrausDb to store new commands on the log.
+///
+/// It is used under a mutex to ensure only 1 write can happen at the same time.
+/// Since GrausDB is lock-free, multiple reads can happen at the same time, even if
+/// there is a write.
 pub struct LogWriter {
     pub writer: BufWriterWithPos<File>,
     pub index: Arc<SkipMap<String, CommandPos>>,
@@ -112,8 +117,8 @@ impl LogWriter {
         self.reader.close_stale_readers();
 
         // remove stale log files
-        // Note that actually these files are not deleted immediately because `KvStoreReader`s
-        // still keep open file handles. When `KvStoreReader` is used next time, it will clear
+        // Note that actually these files are not deleted immediately because `LogReader`s
+        // still keep open file handles. When `LogReader` is used next time, it will clear
         // its stale file handles. On Unix, the files will be deleted after all the handles
         // are closed. On Windows, the deletions below will fail and stale files are expected
         // to be deleted in the next compaction.

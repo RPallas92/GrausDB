@@ -1,7 +1,7 @@
-use std::io::{self, BufWriter, Write, Seek, SeekFrom, BufReader, Read};
 use crate::Result;
+use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 
-
+/// A buffered reader that stores the current position
 pub struct BufReaderWithPos<R: Read + Seek> {
     pub pos: u64,
     reader: BufReader<R>,
@@ -32,6 +32,7 @@ impl<R: Read + Seek> Seek for BufReaderWithPos<R> {
     }
 }
 
+/// A buffered writer that stores the current position
 pub struct BufWriterWithPos<W: Write + Seek> {
     pub pos: u64,
     writer: BufWriter<W>,
@@ -40,7 +41,7 @@ pub struct BufWriterWithPos<W: Write + Seek> {
 impl<W: Write + Seek> BufWriterWithPos<W> {
     pub fn new(mut inner: W) -> Result<Self> {
         let pos = inner.seek(SeekFrom::End(0))?;
-        Ok(BufWriterWithPos { 
+        Ok(BufWriterWithPos {
             writer: BufWriter::new(inner),
             pos,
         })
