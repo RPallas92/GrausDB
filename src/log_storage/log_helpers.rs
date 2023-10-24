@@ -86,6 +86,50 @@ pub fn load_log(
     Ok(uncompacted)
 }
 
+// Returns the size of a given log
+pub fn get_log_size(dir: &Path, log_id: u64) -> Result<u64> {
+    let path = log_path(dir, log_id);
+    let metadata = fs::metadata(path)?;
+    Ok(metadata.len())
+}
+
+/// Returns the last log id in dir.
+pub fn last_log_id(dir: &Path) -> Result<u64> {
+    let log_ids = get_log_ids(dir)?;
+    let last_log_id = log_ids.last().unwrap_or(&1).to_owned();
+    Ok(last_log_id)
+}
+
+// TODO RICARDO
+// Test reading from start = end of file
+// test start = 0, start = middle, and end pos = middle
+
+/// Returns a vector of all commands on the log since start_pos.
+/// If end_pos is passed, it will return commands until it, otherwise until the end of the file.
+pub fn get_commands_from_log(
+    reader: &mut BufReaderWithPos<File>,
+    log_id: u64,
+    start_pos: u64,
+    end_pos: Option<u64>,
+) -> Result<Vec<Command>> {
+    let mut commands = Vec::new();
+
+    reader.seek(std::io::SeekFrom::Start(start_pos))?;
+    let mut stream = Deserializer::from_reader(reader).into_iter::<serde_json::Value>();
+
+    while let Some(value) = stream.next() {
+        let new_pos = stream.byte_offset() as u64;
+        let command: Command = serde_json::from_value(value?)?;
+        commands.push(command);
+
+        if end_pos.is_some_and(|end| end == new_pos) {
+            break;
+        }
+    }
+
+    Ok(commands)
+}
+
 // Returns the path of a log with log_id
 pub fn log_path(dir: &Path, log_id: u64) -> PathBuf {
     dir.join(format!("{}.log", log_id))

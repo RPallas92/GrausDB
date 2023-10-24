@@ -8,3 +8,4 @@ mod error;
 mod graus_db;
 mod io_types;
 mod log_storage;
+mod replication_capabilities;
