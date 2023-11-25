@@ -4,6 +4,13 @@ version = "0.1.0"
 authors = ["Ricardo Pallas Roman <rpallas92@gmail.com>"]
 description = "A high-performance, thread-safe key-value embedded data store."
 edition = "2018"
+categories = ["algorithms", "asynchronous", "data-structures", "distributed-systems"]
+homepage = "https://github.com/rpallas92/GrausDB"
+keywords = ["database", "performance", "data-storage"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/rpallas92/GrausDB"
+documentation = "https://github.com/rpallas92/GrausDB"
+readme = "README.md"
 
 [dependencies]
 crossbeam-skiplist = "0.1"
