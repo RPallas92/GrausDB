@@ -6,7 +6,7 @@
 GrausDb is a high-performance, thread-safe key-value embedded data store written in Rust. It is designed for simplicity, efficiency, and reliability.
 ## Features
 
-- **Lock-Free Concurrency:** GrausDb leverages lock-free data structures for high-performance concurrent access.
+- **Lock-Free Reads:** GrausDb leverages lock-free data structures for high-performance concurrent reads.
 - **Persistence:** Data is persisted to disk for durability.
 - **Log-Based Storage:** Key-value pairs are stored in log files.
 - **Benchmarks:** Benchmarks included to assess the performance.
