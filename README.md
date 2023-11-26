@@ -166,11 +166,11 @@ For more details on how to use GrausDb, please refer to the tests.
 
 ## Architecture and Implementation
 
-GrausDb's architecture is built around the principles of log-based storage and lock-free concurrency:
+GrausDb's architecture is built around the principles of log-based storage and lock-free read concurrency:
 
 - Log-Based Storage: GrausDb stores key-value pairs in log files. Log files are named after monotonically increasing generation numbers with a log extension. This design ensures that data is durably persisted to disk.
 
-- Lock-Free Concurrency: GrausDb uses lock-free data structures to provide high-performance concurrent access to the data. This enables multiple threads to interact with the database efficiently.
+- Lock-Free Concurrency for Reads: GrausDb uses lock-free data structures to provide high-performance concurrent reads to the data. This enables multiple threads to interact with the database efficiently.
 
 - In-Memory Index: GrausDb maintains an in-memory index that maps keys to their positions in the log. This index allows for fast lookups and efficient data retrieval.
 
