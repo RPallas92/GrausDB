@@ -188,7 +188,7 @@ Next features:
 - Sync API (journal)
 - Internal threadpool + futures
 
-### License
+## License
 GrausDb is licensed under the MIT License. 
 
 Happy coding with GrausDb!
