@@ -68,7 +68,7 @@ impl LogReader {
 
     pub fn read_command(&self, cmd_pos: CommandPos) -> Result<Command> {
         self.read_and(cmd_pos, |cmd_reader| {
-            Ok(serde_json::from_reader(cmd_reader)?)
+            Ok(bincode::deserialize_from(cmd_reader)?)
         })
     }
 }

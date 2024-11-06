@@ -11,9 +11,9 @@ pub enum GrausError {
     /// Removing non-existent key error.
     #[error("Key not found")]
     KeyNotFound,
-    /// Serialization or deserialization error.
-    #[error("{0}")]
-    Serde(#[from] serde_json::Error),
+    #[error("Bincode error: {0}")]
+    /// Serialization or deserialization bincode error.
+    Bincode(#[from] Box<bincode::ErrorKind>),
     /// Unexpected command type error.
     /// It indicated a corrupted log or a program bug.
     #[error("Unexpected command type")]

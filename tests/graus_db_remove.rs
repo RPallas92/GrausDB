@@ -5,7 +5,7 @@ use tempfile::TempDir;
 fn remove_removes_key_when_exists() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set("key1".to_owned(), "value1".to_owned())?;
+    store.set("key1".to_owned(), "value1".as_bytes())?;
     assert!(store.remove("key1".to_owned()).is_ok());
     assert_eq!(store.get("key1".to_owned())?, None);
     Ok(())

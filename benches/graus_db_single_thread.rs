@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use graus_db::GrausDb;
 use rand::prelude::*;
+use std::convert::TryInto;
 use tempfile::TempDir;
 
 fn set_bench(c: &mut Criterion) {
@@ -13,7 +14,7 @@ fn set_bench(c: &mut Criterion) {
             },
             |(store, _temp_dir)| {
                 for i in 1..(1 << 12) {
-                    store.set(format!("key{}", i), "value".to_string()).unwrap();
+                    store.set(format!("key{}", i), b"value").unwrap();
                 }
             },
             BatchSize::SmallInput,
@@ -30,16 +31,18 @@ fn update_if_bench(c: &mut Criterion) {
                 let temp_dir = TempDir::new().unwrap();
                 let store = GrausDb::open(temp_dir.path()).unwrap();
                 let key = "key1";
-                store.set(key.to_owned(), "3500".to_string()).unwrap();
+                let value: u64 = 3500;
+                store.set(key.to_owned(), &value.to_le_bytes()).unwrap();
                 (store, temp_dir, key)
             },
             |(store, _temp_dir, key)| {
-                let update_fn = |value: String| {
-                    let num = value.parse::<i32>().unwrap();
-                    (num - 1).to_string()
+                let update_fn = |value: &mut [u8]| {
+                    let num = u64::from_le_bytes(value.try_into().expect("incorrect length"));
+                    let incremented_num = num - 1;
+                    value.copy_from_slice(&incremented_num.to_le_bytes());
                 };
-                let predicate = |value: String| {
-                    let num = value.parse::<i32>().unwrap();
+                let predicate = |value: &[u8]| {
+                    let num = u64::from_le_bytes(value.try_into().expect("incorrect length"));
                     num > 0
                 };
 
@@ -65,9 +68,7 @@ fn get_bench(c: &mut Criterion) {
             let temp_dir = TempDir::new().unwrap();
             let store = GrausDb::open(temp_dir.path()).unwrap();
             for key_i in 1..(1 << i) {
-                store
-                    .set(format!("key{}", key_i), "value".to_string())
-                    .unwrap();
+                store.set(format!("key{}", key_i), b"value").unwrap();
             }
             let mut rng = SmallRng::from_seed([0; 16]);
             b.iter(|| {

@@ -24,9 +24,9 @@ use std::{collections::HashMap, path::PathBuf};
 /// # fn try_main() -> Result<()> {
 /// use std::env::current_dir;
 /// let store = GrausDb::open(current_dir()?)?;
-/// store.set("key".to_owned(), "value".to_owned())?;
+/// store.set("key", b"value")?;
 /// let val = store.get("key".to_owned())?;
-/// assert_eq!(val, Some("value".to_owned()));
+/// assert_eq!(val, Some("value".into()));
 /// # Ok(())
 /// # }
 /// ```
@@ -94,15 +94,15 @@ impl GrausDb {
     /// Sets the value of a string key to a string.
     ///
     /// If the key already exists, the previous value will be overwritten.
-    pub fn set(&self, key: String, value: String) -> Result<()> {
+    pub fn set<K: AsRef<str>>(&self, key: K, value: &[u8]) -> Result<()> {
         self.writer.lock().unwrap().set(key, value)
     }
 
     /// Gets the string value of a given string key.
     ///
     /// Returns `None` if the given key does not exist.
-    pub fn get(&self, key: String) -> Result<Option<String>> {
-        if let Some(cmd_pos) = self.index.get(&key) {
+    pub fn get<K: AsRef<str>>(&self, key: K) -> Result<Option<Vec<u8>>> {
+        if let Some(cmd_pos) = self.index.get(key.as_ref()) {
             if let Command::Set { value, .. } = self.reader.read_command(*cmd_pos.value())? {
                 Ok(Some(value))
             } else {
@@ -124,20 +124,21 @@ impl GrausDb {
     ///
     /// If predicate_key and predicate are provided, it won´t update the value if the predicate
     /// is not satisfied for predicate_key.
-    pub fn update_if<F, P>(
+    pub fn update_if<K, F, P>(
         &self,
-        key: String,
+        key: K,
         update_fn: F,
-        predicate_key: Option<String>,
+        predicate_key: Option<K>,
         predicate: Option<P>,
     ) -> Result<()>
     where
-        F: FnOnce(String) -> String,
-        P: FnOnce(String) -> bool,
+        K: AsRef<str>,
+        F: FnOnce(&mut [u8]),
+        P: FnOnce(&[u8]) -> bool,
     {
         let mut writer = self.writer.lock().unwrap();
-        let current_value = self.get(key.to_owned())?;
-        let Some(current_value) = current_value else {
+        let current_value = self.get(&key)?;
+        let Some(mut current_value) = current_value else {
             return Err(GrausError::KeyNotFound);
         };
 
@@ -146,12 +147,12 @@ impl GrausDb {
             let Some(current_predicate_key_value) = current_predicate_key_value else {
                 return Err(GrausError::KeyNotFound);
             };
-            if !predicate(current_predicate_key_value) {
+            if !predicate(&current_predicate_key_value) {
                 return Err(GrausError::PredicateNotSatisfied);
             }
         }
 
-        let updated_value = update_fn(current_value);
-        writer.set(key, updated_value)
+        update_fn(&mut current_value);
+        writer.set(key, &current_value)
     }
 }

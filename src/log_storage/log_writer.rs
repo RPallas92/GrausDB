@@ -35,10 +35,10 @@ pub struct LogWriter {
 }
 
 impl LogWriter {
-    pub fn set(&mut self, key: String, value: String) -> Result<()> {
+    pub fn set<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<()> {
         let command = Command::set(key, value);
         let pos = self.writer.pos;
-        serde_json::to_writer(&mut self.writer, &command)?;
+        bincode::serialize_into(&mut self.writer, &command)?;
         self.writer.flush()?;
 
         if let Command::Set { key, .. } = command {
@@ -66,7 +66,7 @@ impl LogWriter {
 
         let command = Command::remove(key);
         let pos = self.writer.pos;
-        serde_json::to_writer(&mut self.writer, &command)?;
+        bincode::serialize_into(&mut self.writer, &command)?;
         self.writer.flush()?;
         if let Command::Remove { key } = command {
             let old_cmd = self.index.remove(&key).expect("key not found");

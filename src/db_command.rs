@@ -4,20 +4,30 @@ use std::ops::Range;
 /// Struct representing a command to the database.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
-    Set { key: String, value: String },
-    Remove { key: String },
+    Set {
+        key: String,
+        #[serde(with = "serde_bytes")]
+        value: Vec<u8>,
+    },
+    Remove {
+        key: String,
+    },
 }
 
 impl Command {
-    pub fn set(key: String, value: String) -> Command {
-        Command::Set { key, value }
+    pub fn set<K: AsRef<str>>(key: K, value: &[u8]) -> Command {
+        Command::Set {
+            key: key.as_ref().to_owned(),
+            value: value.to_vec(),
+        }
     }
 
-    pub fn remove(key: String) -> Command {
-        Command::Remove { key }
+    pub fn remove<K: AsRef<str>>(key: K) -> Command {
+        Command::Remove {
+            key: key.as_ref().to_owned(),
+        }
     }
 }
-
 /// Struct representing the position of a command in a given file.
 #[derive(Debug, Clone, Copy)]
 pub struct CommandPos {

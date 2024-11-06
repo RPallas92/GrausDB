@@ -4,7 +4,6 @@ use crate::{
     io_types::{BufReaderWithPos, BufWriterWithPos},
 };
 use crossbeam_skiplist::SkipMap;
-use serde_json::Deserializer;
 use std::io::Seek;
 use std::{
     ffi::OsStr,
@@ -52,12 +51,10 @@ pub fn load_log(
     index: &SkipMap<String, CommandPos>,
 ) -> Result<u64> {
     let mut pos = reader.seek(SeekFrom::Start(0))?;
-    let mut stream = Deserializer::from_reader(reader).into_iter::<serde_json::Value>();
     let mut uncompacted = 0; // number of bytes that can be saved after a compaction.
 
-    while let Some(value) = stream.next() {
-        let new_pos = stream.byte_offset() as u64;
-        let command: Command = serde_json::from_value(value?)?;
+    while let Ok(command) = bincode::deserialize_from::<_, Command>(&mut *reader) {
+        let new_pos = reader.stream_position()? as u64;
         match command {
             Command::Set { key, .. } => {
                 let old_cmd = index.insert(

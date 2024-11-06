@@ -25,7 +25,7 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         for key_id in 0..1000 {
             let key = format!("key{}", key_id);
             let value = format!("{}", iter);
-            store.set(key, value)?;
+            store.set(key, value.as_bytes())?;
         }
 
         let new_size = dir_size();
@@ -36,7 +36,7 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         // Compaction triggered, check content after compaction
         for key_id in 0..1000 {
             let key = format!("key{}", key_id);
-            assert_eq!(store.get(key)?, Some(format!("{}", iter)));
+            assert_eq!(store.get(key)?, Some(format!("{}", iter).into_bytes()));
         }
 
         drop(store);
@@ -44,7 +44,7 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         let store = GrausDb::open(temp_dir.path())?;
         for key_id in 0..1000 {
             let key = format!("key{}", key_id);
-            assert_eq!(store.get(key)?, Some(format!("{}", iter)));
+            assert_eq!(store.get(key)?, Some(format!("{}", iter).into_bytes()));
         }
         return Ok(());
     }

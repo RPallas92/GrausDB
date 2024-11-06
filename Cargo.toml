@@ -1,6 +1,6 @@
 [package]
 name = "graus-db"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Ricardo Pallas Roman <rpallas92@gmail.com>"]
 description = "A high-performance, thread-safe key-value embedded data store."
 edition = "2018"
@@ -13,10 +13,12 @@ documentation = "https://github.com/rpallas92/GrausDB"
 readme = "README.md"
 
 [dependencies]
+bincode = "1.3.3"
+bytes = "1.8.0"
 crossbeam-skiplist = "0.1"
 log = "0.4.6"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_bytes = "0.11.15"
 thiserror = "1.0"
 
 [dev-dependencies]
