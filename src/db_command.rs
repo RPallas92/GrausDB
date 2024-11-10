@@ -1,24 +1,20 @@
-use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
+use bytes::Bytes;
+
 /// Struct representing a command to the database.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Command {
-    Set {
-        key: String,
-        #[serde(with = "serde_bytes")]
-        value: Vec<u8>,
-    },
-    Remove {
-        key: String,
-    },
+    // TODO Ricardo &str instead?
+    Set { key: String, value: Bytes },
+    Remove { key: String },
 }
 
 impl Command {
-    pub fn set<K: AsRef<str>>(key: K, value: &[u8]) -> Command {
+    pub fn set<K: AsRef<str>>(key: K, value: Bytes) -> Command {
         Command::Set {
             key: key.as_ref().to_owned(),
-            value: value.to_vec(),
+            value,
         }
     }
 

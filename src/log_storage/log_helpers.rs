@@ -3,14 +3,17 @@ use crate::{
     db_command::{Command, CommandPos},
     io_types::{BufReaderWithPos, BufWriterWithPos},
 };
+use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
-use std::io::Seek;
+use std::io::{Read, Seek};
 use std::{
     ffi::OsStr,
     fs::{self, File, OpenOptions},
     io::SeekFrom,
     path::{Path, PathBuf},
 };
+
+use super::db_command_serde::CommandDeserializer;
 
 // Returns sorted existing log ids in the given directory (path).
 pub fn get_log_ids(path: &Path) -> Result<Vec<u64>> {
@@ -53,8 +56,17 @@ pub fn load_log(
     let mut pos = reader.seek(SeekFrom::Start(0))?;
     let mut uncompacted = 0; // number of bytes that can be saved after a compaction.
 
-    while let Ok(command) = bincode::deserialize_from::<_, Command>(&mut *reader) {
-        let new_pos = reader.stream_position()? as u64;
+    // Read the entire content into a buffer.
+    let mut buf = Vec::new();
+    reader.read_to_end(&mut buf)?;
+
+    // Create an iterator for deserializing commands.
+    let mut deserializer = CommandDeserializer::new(Bytes::from(buf));
+
+    // Iterate over the deserialized commands.
+    while let Some(command) = deserializer.next() {
+        let new_pos = deserializer.pos as u64;
+        let command = command?;
         match command {
             Command::Set { key, .. } => {
                 let old_cmd = index.insert(

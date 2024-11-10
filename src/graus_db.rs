@@ -4,6 +4,7 @@ use crate::log_storage::log_helpers::{get_log_ids, load_log, log_path, new_log_f
 use crate::log_storage::log_reader::LogReader;
 use crate::log_storage::log_writer::LogWriter;
 use crate::{GrausError, Result};
+use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
 use std::cell::RefCell;
 use std::fs::{self, File};
@@ -39,6 +40,10 @@ pub struct GrausDb {
     // Reads data from the file system logs.
     reader: LogReader,
 }
+
+// TODO Ricardo update DOCS as now we don't use Strings
+
+// TODO Ricardo add clippy as linter
 
 impl GrausDb {
     /// Opens a `GrausDb` with the given path.
@@ -95,16 +100,20 @@ impl GrausDb {
     ///
     /// If the key already exists, the previous value will be overwritten.
     pub fn set<K: AsRef<str>>(&self, key: K, value: &[u8]) -> Result<()> {
-        self.writer.lock().unwrap().set(key, value)
+        self.writer
+            .lock()
+            .unwrap()
+            .set(key, Bytes::copy_from_slice(value))
     }
 
     /// Gets the string value of a given string key.
     ///
     /// Returns `None` if the given key does not exist.
     pub fn get<K: AsRef<str>>(&self, key: K) -> Result<Option<Vec<u8>>> {
+        // TODO Ricardo return &[u8]
         if let Some(cmd_pos) = self.index.get(key.as_ref()) {
             if let Command::Set { value, .. } = self.reader.read_command(*cmd_pos.value())? {
-                Ok(Some(value))
+                Ok(Some(value.to_vec()))
             } else {
                 Err(GrausError::UnexpectedCommandType)
             }
@@ -153,6 +162,6 @@ impl GrausDb {
         }
 
         update_fn(&mut current_value);
-        writer.set(key, &current_value)
+        writer.set(key, Bytes::from(current_value))
     }
 }

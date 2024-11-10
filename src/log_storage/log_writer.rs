@@ -1,4 +1,5 @@
 use super::{
+    db_command_serde::serialize_command,
     log_helpers::{get_log_ids, log_path, new_log_file},
     log_reader::LogReader,
 };
@@ -7,6 +8,7 @@ use crate::{
     io_types::BufWriterWithPos,
 };
 use crate::{GrausError, Result};
+use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
 use log::error;
 use std::{
@@ -35,10 +37,10 @@ pub struct LogWriter {
 }
 
 impl LogWriter {
-    pub fn set<K: AsRef<str>>(&mut self, key: K, value: &[u8]) -> Result<()> {
+    pub fn set<K: AsRef<str>>(&mut self, key: K, value: Bytes) -> Result<()> {
         let command = Command::set(key, value);
         let pos = self.writer.pos;
-        bincode::serialize_into(&mut self.writer, &command)?;
+        self.writer.write_all(&serialize_command(&command)[..])?;
         self.writer.flush()?;
 
         if let Command::Set { key, .. } = command {
@@ -66,7 +68,7 @@ impl LogWriter {
 
         let command = Command::remove(key);
         let pos = self.writer.pos;
-        bincode::serialize_into(&mut self.writer, &command)?;
+        self.writer.write_all(&serialize_command(&command)[..])?;
         self.writer.flush()?;
         if let Command::Remove { key } = command {
             let old_cmd = self.index.remove(&key).expect("key not found");

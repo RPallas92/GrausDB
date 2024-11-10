@@ -1,3 +1,6 @@
+use bytes::Bytes;
+
+use super::db_command_serde::deserialize_command;
 use super::log_helpers::log_path;
 use crate::db_command::Command;
 use crate::Result;
@@ -67,8 +70,11 @@ impl LogReader {
     }
 
     pub fn read_command(&self, cmd_pos: CommandPos) -> Result<Command> {
-        self.read_and(cmd_pos, |cmd_reader| {
-            Ok(bincode::deserialize_from(cmd_reader)?)
+        self.read_and(cmd_pos, |mut cmd_reader| {
+            let mut buf = Vec::with_capacity(cmd_pos.len as usize);
+            cmd_reader.read_to_end(&mut buf)?;
+            let (_, command) = deserialize_command(Bytes::from(buf))?;
+            Ok(command)
         })
     }
 }
