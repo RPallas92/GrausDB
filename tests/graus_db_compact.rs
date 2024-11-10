@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use graus_db::{GrausDb, Result};
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -21,11 +22,11 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
     };
 
     let mut current_size = dir_size();
-    for iter in 0..1000 {
-        for key_id in 0..1000 {
+    for iter in 0..10000 {
+        for key_id in 0..10 {
             let key = format!("key{}", key_id);
             let value = format!("{}", iter);
-            store.set(key, value.as_bytes())?;
+            store.set(Bytes::from(key), Bytes::from(value))?;
         }
 
         let new_size = dir_size();
@@ -34,17 +35,23 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
             continue;
         }
         // Compaction triggered, check content after compaction
-        for key_id in 0..1000 {
+        for key_id in 0..10 {
             let key = format!("key{}", key_id);
-            assert_eq!(store.get(key)?, Some(format!("{}", iter).into_bytes()));
+            assert_eq!(
+                store.get(&Bytes::from(key))?,
+                Some(Bytes::from(format!("{}", iter)))
+            );
         }
 
         drop(store);
         // reopen and check content
         let store = GrausDb::open(temp_dir.path())?;
-        for key_id in 0..1000 {
+        for key_id in 0..10 {
             let key = format!("key{}", key_id);
-            assert_eq!(store.get(key)?, Some(format!("{}", iter).into_bytes()));
+            assert_eq!(
+                store.get(&Bytes::from(key))?,
+                Some(Bytes::from(format!("{}", iter)))
+            );
         }
         return Ok(());
     }

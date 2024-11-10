@@ -5,23 +5,17 @@ use bytes::Bytes;
 /// Struct representing a command to the database.
 #[derive(Debug, PartialEq)]
 pub enum Command {
-    // TODO Ricardo &str instead?
-    Set { key: String, value: Bytes },
-    Remove { key: String },
+    Set { key: Bytes, value: Bytes },
+    Remove { key: Bytes },
 }
 
 impl Command {
-    pub fn set<K: AsRef<str>>(key: K, value: Bytes) -> Command {
-        Command::Set {
-            key: key.as_ref().to_owned(),
-            value,
-        }
+    pub fn set(key: Bytes, value: Bytes) -> Command {
+        Command::Set { key, value }
     }
 
-    pub fn remove<K: AsRef<str>>(key: K) -> Command {
-        Command::Remove {
-            key: key.as_ref().to_owned(),
-        }
+    pub fn remove(key: Bytes) -> Command {
+        Command::Remove { key }
     }
 }
 /// Struct representing the position of a command in a given file.

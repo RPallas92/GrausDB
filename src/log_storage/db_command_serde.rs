@@ -1,67 +1,55 @@
-use bytes::{BufMut, Bytes, BytesMut};
-use std::convert::TryInto;
+use bytes::{Bytes, BytesMut};
+use std::io::{Read, Seek, Write};
 
 use crate::db_command::Command;
+use crate::io_types::{BufReaderWithPos, BufWriterWithPos};
 use crate::{GrausError, Result};
 
 const SET_COMMAND_KEY: u8 = 0;
 const REMOVE_COMMAND_KEY: u8 = 1;
 
-pub(crate) fn serialize_command(command: &Command) -> Bytes {
+pub(crate) fn serialize_command<W: Write + Seek>(
+    command: &Command,
+    writer: &mut BufWriterWithPos<W>,
+) -> Result<()> {
     match command {
         Command::Set { key, value } => {
-            let serialized_key = key.as_bytes();
-            let key_size = serialized_key.len();
-            let value_size = value.len();
+            let key_size = key.len() as u32;
+            let value_size = value.len() as u32;
 
-            let command_size = 1  // Command type
-                + 4  // Key size (u32)
-                + key_size  // Serialized key bytes
-                + 4  // Value size (u32)
-                + value_size; // Serialized value bytes
-
-            let mut buf = BytesMut::with_capacity(command_size);
-            buf.put_u8(SET_COMMAND_KEY);
-            buf.put_u32(key_size as u32);
-            buf.put_slice(serialized_key);
-            buf.put_u32(value_size as u32);
-            buf.put_slice(value);
-
-            buf.freeze()
+            writer.write_all(&[SET_COMMAND_KEY])?;
+            writer.write_all(&key_size.to_be_bytes())?;
+            writer.write_all(key.as_ref())?;
+            writer.write_all(&value_size.to_be_bytes())?;
+            writer.write_all(value.as_ref())?;
         }
         Command::Remove { key } => {
-            let serialized_key = key.as_bytes();
-            let key_size = serialized_key.len();
+            let key_size = key.len() as u32;
 
-            let command_size = 1  // Command type
-                + 4  // Key size (u32)
-                + key_size; // Serialized key bytes
-
-            let mut buf = BytesMut::with_capacity(command_size);
-            buf.put_u8(REMOVE_COMMAND_KEY);
-            buf.put_u32(key_size as u32);
-            buf.put_slice(serialized_key);
-
-            buf.freeze()
+            writer.write_all(&[REMOVE_COMMAND_KEY])?;
+            writer.write_all(&key_size.to_be_bytes())?;
+            writer.write_all(key.as_ref())?;
         }
     }
+    writer.flush()?;
+    Ok(())
 }
 
-pub(crate) fn deserialize_command(buf: Bytes) -> Result<(usize, Command)> {
-    let pos = 0;
-    match buf[pos] {
+pub(crate) fn deserialize_command<R: Read + Seek>(
+    reader: &mut BufReaderWithPos<R>,
+) -> Result<Command> {
+    let mut command_type = [0u8; 1];
+    reader.read_exact(&mut command_type)?;
+
+    match command_type[0] {
         SET_COMMAND_KEY => {
-            let (key_bytes_read, key) = read_word(&buf, pos + 1)?;
-            let (value_bytes_read, value) = read_word(&buf, pos + 1 + key_bytes_read)?;
-            let key = unsafe { std::str::from_utf8_unchecked(&key).to_string() };
-            let total_bytes_read = 1 + key_bytes_read + value_bytes_read;
-            Ok((total_bytes_read, Command::set(key, value)))
+            let key = read_word_from_reader(reader)?;
+            let value = read_word_from_reader(reader)?;
+            Ok(Command::set(key, value))
         }
         REMOVE_COMMAND_KEY => {
-            let (key_bytes_read, key) = read_word(&buf, pos + 1)?;
-            let key = unsafe { std::str::from_utf8_unchecked(&key).to_string() };
-            let total_bytes_read = 1 + key_bytes_read;
-            Ok((total_bytes_read, Command::remove(key)))
+            let key = read_word_from_reader(reader)?;
+            Ok(Command::remove(key))
         }
         _ => Err(GrausError::SerializationError(String::from(
             "Invalid command found",
@@ -69,28 +57,43 @@ pub(crate) fn deserialize_command(buf: Bytes) -> Result<(usize, Command)> {
     }
 }
 
-pub struct CommandDeserializer {
-    buf: Bytes,
+fn read_word_from_reader<R: Read + Seek>(reader: &mut BufReaderWithPos<R>) -> Result<Bytes> {
+    // Read the length of the word as a u32
+    let mut len_buf = [0u8; 4];
+    reader.read_exact(&mut len_buf)?;
+    let word_len = u32::from_be_bytes(len_buf) as usize;
+
+    // Read the actual word data
+    let mut word_buf = BytesMut::with_capacity(word_len);
+    word_buf.resize(word_len, 0);
+    reader.read_exact(&mut word_buf)?;
+
+    Ok(word_buf.freeze())
+}
+
+pub struct CommandDeserializer<'a, R: Read + Seek> {
+    reader: &'a mut BufReaderWithPos<R>,
     pub pos: usize,
 }
 
-impl<'a> CommandDeserializer {
-    pub fn new(buf: Bytes) -> Self {
-        Self { buf, pos: 0 }
+impl<'a, R: Read + Seek> CommandDeserializer<'a, R> {
+    pub fn new(reader: &'a mut BufReaderWithPos<R>) -> Self {
+        Self { reader, pos: 0 }
     }
 }
 
-impl Iterator for CommandDeserializer {
+impl<'a, R: Read + Seek> Iterator for CommandDeserializer<'a, R> {
     type Item = Result<Command>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.buf.len() {
+        if self.reader.is_exhausted().unwrap_or(true) {
             return None;
         }
 
-        match deserialize_command(self.buf.slice(self.pos..)) {
-            Ok((bytes_read, command)) => {
-                self.pos += bytes_read;
+        match deserialize_command(self.reader) {
+            Ok(command) => {
+                let end_pos = self.reader.stream_position().unwrap() as usize;
+                self.pos = end_pos;
                 Some(Ok(command))
             }
             Err(e) => Some(Err(e)),
@@ -98,63 +101,32 @@ impl Iterator for CommandDeserializer {
     }
 }
 
-// A word is composed of {word_size}{word} where:
-// - word_size length is 4 bytes
-// - and word length is word_size
-fn read_word(buf: &Bytes, pos: usize) -> Result<(usize, Bytes)> {
-    if pos >= buf.len() {
-        return Err(GrausError::SerializationError(String::from(
-            "Trying to read bytes outside the buffer len",
-        )));
-    }
-
-    let word_len = u32::from_be_bytes(
-        (&buf.slice(pos..pos + 4)[..])
-            .try_into()
-            .expect("Failed to convert slice to array"),
-    );
-
-    let word_start_pos = pos + 4;
-
-    if word_start_pos + word_len as usize > buf.len() {
-        return Err(GrausError::SerializationError(String::from(
-            "Insufficient bytes to read word content",
-        )));
-    }
-
-    let word_bytes = buf.slice(word_start_pos..word_start_pos + word_len as usize);
-    let total_bytes_read = 4 + word_bytes.len();
-
-    Ok((total_bytes_read, word_bytes))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db_command::Command;
+    use std::io::Cursor;
 
     #[test]
-    fn test_serde_set_command() {
-        let command = Command::Set {
-            key: "test_key".to_string(),
-            value: Bytes::from_static(b"test value"),
-        };
+    fn test_serde_command() -> Result<()> {
+        let key = Bytes::from_static(b"key value");
+        let set_command = Command::set(key.clone(), Bytes::from_static(b"Ricardo"));
+        let remove_command = Command::remove(key);
 
-        let serialized = serialize_command(&command);
-        let (_, deserialized) = deserialize_command(serialized).unwrap();
+        let mut buffer = Vec::new();
 
-        assert_eq!(command, deserialized);
-    }
+        {
+            let mut writer = BufWriterWithPos::new(Cursor::new(&mut buffer))?;
+            serialize_command(&set_command, &mut writer)?;
+            serialize_command(&remove_command, &mut writer)?;
+        }
 
-    #[test]
-    fn test_serde_remove_command() {
-        let command = Command::Remove {
-            key: "test_key".to_string(),
-        };
+        let mut reader = BufReaderWithPos::new(Cursor::new(&mut buffer))?;
+        let deserialized_set_command = deserialize_command(&mut reader)?;
+        let deserialized_remove_command = deserialize_command(&mut reader)?;
 
-        let serialized = serialize_command(&command);
-        let (_, deserialized) = deserialize_command(serialized).unwrap();
+        assert_eq!(set_command, deserialized_set_command);
+        assert_eq!(remove_command, deserialized_remove_command);
 
-        assert_eq!(command, deserialized);
+        Ok(())
     }
 }

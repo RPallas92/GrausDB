@@ -3,9 +3,9 @@ use crate::{
     db_command::{Command, CommandPos},
     io_types::{BufReaderWithPos, BufWriterWithPos},
 };
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
-use std::io::{Read, Seek};
+use std::io::Seek;
 use std::{
     ffi::OsStr,
     fs::{self, File, OpenOptions},
@@ -51,20 +51,13 @@ pub fn new_log_file(path: &Path, log_id: u64) -> Result<BufWriterWithPos<File>> 
 pub fn load_log(
     log_id: u64,
     reader: &mut BufReaderWithPos<File>,
-    index: &SkipMap<String, CommandPos>,
+    index: &SkipMap<Bytes, CommandPos>,
 ) -> Result<u64> {
     let mut pos = reader.seek(SeekFrom::Start(0))?;
     let mut uncompacted = 0; // number of bytes that can be saved after a compaction.
 
-    let file_metadata = reader.get_metadata()?;
-    let file_size = file_metadata.len() as usize;
-
-    let mut buf = BytesMut::with_capacity(file_size);
-    buf.resize(file_size, 0);
-    reader.read_exact(&mut buf)?;
-
     // Create an iterator for deserializing commands.
-    let mut deserializer = CommandDeserializer::new(Bytes::from(buf));
+    let mut deserializer = CommandDeserializer::new(reader);
 
     // Iterate over the deserialized commands.
     while let Some(command) = deserializer.next() {

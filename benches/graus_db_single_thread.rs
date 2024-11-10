@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use graus_db::GrausDb;
 use rand::prelude::*;
@@ -13,8 +14,11 @@ fn set_bench(c: &mut Criterion) {
                 (GrausDb::open(temp_dir.path()).unwrap(), temp_dir)
             },
             |(store, _temp_dir)| {
+                let value = Bytes::from_static(b"value");
                 for i in 1..(1 << 12) {
-                    store.set(format!("key{}", i), b"value").unwrap();
+                    store
+                        .set(Bytes::from(format!("key{}", i)), value.clone())
+                        .unwrap();
                 }
             },
             BatchSize::SmallInput,
@@ -30,29 +34,27 @@ fn update_if_bench(c: &mut Criterion) {
             || {
                 let temp_dir = TempDir::new().unwrap();
                 let store = GrausDb::open(temp_dir.path()).unwrap();
-                let key = "key1";
+                let key = Bytes::from_static(b"key1");
                 let value: u64 = 3500;
-                store.set(key.to_owned(), &value.to_le_bytes()).unwrap();
+                store
+                    .set(key.clone(), Bytes::copy_from_slice(&value.to_be_bytes()))
+                    .unwrap();
                 (store, temp_dir, key)
             },
             |(store, _temp_dir, key)| {
-                let update_fn = |value: &mut [u8]| {
-                    let num = u64::from_le_bytes(value.try_into().expect("incorrect length"));
-                    let incremented_num = num - 1;
-                    value.copy_from_slice(&incremented_num.to_le_bytes());
+                let update_fn = |value: &mut BytesMut| {
+                    let num = u64::from_le_bytes(
+                        value.as_ref()[..8].try_into().expect("incorrect length"),
+                    ) - 1;
+                    value.copy_from_slice(&num.to_le_bytes());
                 };
-                let predicate = |value: &[u8]| {
-                    let num = u64::from_le_bytes(value.try_into().expect("incorrect length"));
+                let predicate = |value: &Bytes| {
+                    let num = u64::from_le_bytes(value[..].try_into().expect("incorrect length"));
                     num > 0
                 };
 
                 for _ in 1..(1 << 12) {
-                    let _ = store.update_if(
-                        key.to_owned(),
-                        update_fn,
-                        Some(key.to_owned()),
-                        Some(predicate),
-                    );
+                    let _ = store.update_if(key.to_owned(), update_fn, Some(&key), Some(predicate));
                 }
             },
             BatchSize::SmallInput,
@@ -67,13 +69,16 @@ fn get_bench(c: &mut Criterion) {
         group.bench_with_input(format!("graus_db_get_{}", i), i, |b, i| {
             let temp_dir = TempDir::new().unwrap();
             let store = GrausDb::open(temp_dir.path()).unwrap();
+            let value = Bytes::from_static(b"value");
             for key_i in 1..(1 << i) {
-                store.set(format!("key{}", key_i), b"value").unwrap();
+                store
+                    .set(Bytes::from(format!("key{}", key_i)), value.clone())
+                    .unwrap();
             }
             let mut rng = SmallRng::from_seed([0; 16]);
             b.iter(|| {
                 store
-                    .get(format!("key{}", rng.gen_range(1, 1 << i)))
+                    .get(&Bytes::from(format!("key{}", rng.gen_range(1, 1 << i))))
                     .unwrap();
             })
         });

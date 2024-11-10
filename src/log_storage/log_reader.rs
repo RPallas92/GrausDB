@@ -1,11 +1,9 @@
-use bytes::{Bytes, BytesMut};
-
 use super::db_command_serde::deserialize_command;
 use super::log_helpers::log_path;
 use crate::db_command::Command;
 use crate::Result;
 use crate::{db_command::CommandPos, io_types::BufReaderWithPos};
-use std::io::{self, Read, Seek};
+use std::io::Seek;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -52,7 +50,7 @@ impl LogReader {
     /// Read the log file at the given `CommandPos` and execute a callback.
     pub fn read_and<F, R>(&self, cmd_pos: CommandPos, f: F) -> Result<R>
     where
-        F: FnOnce(io::Take<&mut BufReaderWithPos<File>>) -> Result<R>,
+        F: FnOnce(&mut BufReaderWithPos<File>) -> Result<R>,
     {
         self.close_stale_readers();
 
@@ -65,18 +63,11 @@ impl LogReader {
         }
         let reader = readers.get_mut(&cmd_pos.log_id).unwrap();
         reader.seek(SeekFrom::Start(cmd_pos.pos))?;
-        let cmd_reader = reader.take(cmd_pos.len);
-        f(cmd_reader)
+        f(reader)
     }
 
     pub fn read_command(&self, cmd_pos: CommandPos) -> Result<Command> {
-        self.read_and(cmd_pos, |mut cmd_reader| {
-            let mut buf = BytesMut::with_capacity(cmd_pos.len as usize);
-            buf.resize(cmd_pos.len as usize, 0);
-            cmd_reader.read_exact(&mut buf)?;
-            let (_, command) = deserialize_command(Bytes::from(buf))?;
-            Ok(command)
-        })
+        self.read_and(cmd_pos, |reader| deserialize_command(reader))
     }
 }
 

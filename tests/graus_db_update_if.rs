@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use graus_db::{GrausDb, GrausError, Result};
 use tempfile::TempDir;
 
@@ -5,10 +6,10 @@ use tempfile::TempDir;
 fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set("key1".to_owned(), "value1".as_bytes())?;
-    store.set("key2".to_owned(), "value2".as_bytes())?;
+    store.set(Bytes::from_static(b"key1"), Bytes::from_static(b"value1"))?;
+    store.set(Bytes::from_static(b"key2"), Bytes::from_static(b"value2"))?;
 
-    let update_fn = |value: &mut [u8]| {
+    let update_fn = |value: &mut BytesMut| {
         for byte in value.iter_mut() {
             // Convert the byte to uppercase if it's a lowercase ASCII character
             if *byte >= b'a' && *byte <= b'z' {
@@ -16,17 +17,19 @@ fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
             }
         }
     };
-
-    let predicate = |value: &[u8]| value == b"value2";
+    let predicate = |value: &Bytes| &value[..] == b"value2";
 
     store.update_if(
-        "key1".to_owned(),
+        Bytes::from_static(b"key1"),
         update_fn,
-        Some("key2".to_owned()),
+        Some(&Bytes::from_static(b"key2")),
         Some(predicate),
     )?;
 
-    assert_eq!(store.get("key1".to_owned())?, Some("VALUE1".into()));
+    assert_eq!(
+        store.get(&Bytes::from_static(b"key1")).unwrap(),
+        Some(Bytes::from_static(b"VALUE1"))
+    );
     Ok(())
 }
 
@@ -34,9 +37,9 @@ fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
 fn update_if_updates_existing_data_when_no_predicate() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set("key1".to_owned(), "value1".as_bytes())?;
+    store.set(Bytes::from_static(b"key1"), Bytes::from_static(b"value1"))?;
 
-    let update_fn = |value: &mut [u8]| {
+    let update_fn = |value: &mut BytesMut| {
         for byte in value.iter_mut() {
             // Convert the byte to uppercase if it's a lowercase ASCII character
             if *byte >= b'a' && *byte <= b'z' {
@@ -45,9 +48,11 @@ fn update_if_updates_existing_data_when_no_predicate() -> Result<()> {
         }
     };
 
-    store.update_if::<_, _, fn(&[u8]) -> bool>("key1".to_owned(), update_fn, None, None)?;
-
-    assert_eq!(store.get("key1".to_owned())?, Some("VALUE1".into()));
+    store.update_if::<_, fn(&Bytes) -> bool>(Bytes::from_static(b"key1"), update_fn, None, None)?;
+    assert_eq!(
+        store.get(&Bytes::from_static(b"key1")).unwrap(),
+        Some(Bytes::from_static(b"VALUE1"))
+    );
     Ok(())
 }
 
@@ -56,10 +61,10 @@ fn update_if_returns_predicate_error_when_predicate_is_not_satisfied_for_existin
 ) -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set("key1".to_owned(), "value1".as_bytes())?;
-    store.set("key2".to_owned(), "value2".as_bytes())?;
+    store.set(Bytes::from_static(b"key1"), Bytes::from_static(b"value1"))?;
+    store.set(Bytes::from_static(b"key2"), Bytes::from_static(b"value2"))?;
 
-    let update_fn = |value: &mut [u8]| {
+    let update_fn = |value: &mut BytesMut| {
         for byte in value.iter_mut() {
             // Convert the byte to uppercase if it's a lowercase ASCII character
             if *byte >= b'a' && *byte <= b'z' {
@@ -67,12 +72,12 @@ fn update_if_returns_predicate_error_when_predicate_is_not_satisfied_for_existin
             }
         }
     };
-    let predicate = |value: &[u8]| value == b"value1";
+    let predicate = |value: &Bytes| &value[..] == b"value1";
 
     let result = store.update_if(
-        "key1".to_owned(),
+        Bytes::from_static(b"key1"),
         update_fn,
-        Some("key2".to_owned()),
+        Some(&Bytes::from_static(b"key2")),
         Some(predicate),
     );
 
@@ -80,7 +85,10 @@ fn update_if_returns_predicate_error_when_predicate_is_not_satisfied_for_existin
         Err(GrausError::PredicateNotSatisfied) => assert!(true),
         _ => assert!(false),
     }
-    assert_eq!(store.get("key1".to_owned())?, Some("value1".into()));
+    assert_eq!(
+        store.get(&Bytes::from_static(b"key1")).unwrap(),
+        Some(Bytes::from_static(b"value1"))
+    );
     Ok(())
 }
 
@@ -89,7 +97,7 @@ fn update_if_returns_key_not_found_error_when_data_not_exists() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
 
-    let update_fn = |value: &mut [u8]| {
+    let update_fn = |value: &mut BytesMut| {
         for byte in value.iter_mut() {
             // Convert the byte to uppercase if it's a lowercase ASCII character
             if *byte >= b'a' && *byte <= b'z' {
@@ -97,8 +105,13 @@ fn update_if_returns_key_not_found_error_when_data_not_exists() -> Result<()> {
             }
         }
     };
-    let result =
-        store.update_if::<_, _, fn(&[u8]) -> bool>("key1".to_owned(), update_fn, None, None);
+
+    let result = store.update_if::<_, fn(&Bytes) -> bool>(
+        Bytes::from_static(b"key1"),
+        update_fn,
+        None,
+        None,
+    );
 
     match result {
         Err(GrausError::KeyNotFound) => assert!(true),

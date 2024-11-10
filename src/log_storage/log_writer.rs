@@ -29,7 +29,7 @@ const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 /// there is a write.
 pub struct LogWriter {
     pub writer: BufWriterWithPos<File>,
-    pub index: Arc<SkipMap<String, CommandPos>>,
+    pub index: Arc<SkipMap<Bytes, CommandPos>>,
     pub reader: LogReader,
     pub path: Arc<PathBuf>,
     pub current_log_id: u64,
@@ -37,11 +37,11 @@ pub struct LogWriter {
 }
 
 impl LogWriter {
-    pub fn set<K: AsRef<str>>(&mut self, key: K, value: Bytes) -> Result<()> {
+    pub fn set(&mut self, key: Bytes, value: Bytes) -> Result<()> {
         let command = Command::set(key, value);
         let pos = self.writer.pos;
-        self.writer.write_all(&serialize_command(&command)[..])?;
-        self.writer.flush()?;
+
+        serialize_command(&command, &mut self.writer)?;
 
         if let Command::Set { key, .. } = command {
             if let Some(old_cmd) = self.index.get(&key) {
@@ -61,15 +61,16 @@ impl LogWriter {
         Ok(())
     }
 
-    pub fn remove(&mut self, key: String) -> Result<()> {
+    pub fn remove(&mut self, key: Bytes) -> Result<()> {
         if !self.index.contains_key(&key) {
             return Err(GrausError::KeyNotFound);
         }
 
         let command = Command::remove(key);
         let pos = self.writer.pos;
-        self.writer.write_all(&serialize_command(&command)[..])?;
-        self.writer.flush()?;
+
+        serialize_command(&command, &mut self.writer)?;
+
         if let Command::Remove { key } = command {
             let old_cmd = self.index.remove(&key).expect("key not found");
             self.uncompacted += old_cmd.value().len;
@@ -92,7 +93,7 @@ impl LogWriter {
 
         let mut compaction_writer = new_log_file(&self.path, compaction_log_id)?;
 
-        let mut index_with_updated_positions: HashMap<String, CommandPos> = HashMap::new();
+        let mut index_with_updated_positions: HashMap<Bytes, CommandPos> = HashMap::new();
         // Write compacted entries in compaction log
         let mut new_pos = 0;
         for cmd_pos in self.index.iter() {
