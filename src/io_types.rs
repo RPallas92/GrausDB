@@ -1,13 +1,26 @@
 use crate::Result;
-use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::{
+    fs::{File, Metadata},
+    io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
+};
+
+pub trait MetadataReader {
+    fn metadata(&self) -> io::Result<Metadata>;
+}
+
+impl MetadataReader for File {
+    fn metadata(&self) -> io::Result<Metadata> {
+        self.metadata()
+    }
+}
 
 /// A buffered reader that stores the current position
-pub struct BufReaderWithPos<R: Read + Seek> {
+pub struct BufReaderWithPos<R: Read + Seek + MetadataReader> {
     pub pos: u64,
     reader: BufReader<R>,
 }
 
-impl<R: Read + Seek> BufReaderWithPos<R> {
+impl<R: Read + Seek + MetadataReader> BufReaderWithPos<R> {
     pub fn new(mut inner: R) -> Result<Self> {
         let pos = inner.seek(SeekFrom::Current(0))?;
         Ok(BufReaderWithPos {
@@ -15,9 +28,13 @@ impl<R: Read + Seek> BufReaderWithPos<R> {
             pos,
         })
     }
+
+    pub fn get_metadata(&self) -> io::Result<Metadata> {
+        self.reader.get_ref().metadata()
+    }
 }
 
-impl<R: Read + Seek> Read for BufReaderWithPos<R> {
+impl<R: Read + Seek + MetadataReader> Read for BufReaderWithPos<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let len = self.reader.read(buf)?;
         self.pos += len as u64;
@@ -25,7 +42,7 @@ impl<R: Read + Seek> Read for BufReaderWithPos<R> {
     }
 }
 
-impl<R: Read + Seek> Seek for BufReaderWithPos<R> {
+impl<R: Read + Seek + MetadataReader> Seek for BufReaderWithPos<R> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.pos = self.reader.seek(pos)?;
         Ok(self.pos)

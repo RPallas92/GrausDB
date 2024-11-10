@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
 use super::db_command_serde::deserialize_command;
 use super::log_helpers::log_path;
@@ -71,8 +71,9 @@ impl LogReader {
 
     pub fn read_command(&self, cmd_pos: CommandPos) -> Result<Command> {
         self.read_and(cmd_pos, |mut cmd_reader| {
-            let mut buf = Vec::with_capacity(cmd_pos.len as usize);
-            cmd_reader.read_to_end(&mut buf)?;
+            let mut buf = BytesMut::with_capacity(cmd_pos.len as usize);
+            buf.resize(cmd_pos.len as usize, 0);
+            cmd_reader.read_exact(&mut buf)?;
             let (_, command) = deserialize_command(Bytes::from(buf))?;
             Ok(command)
         })

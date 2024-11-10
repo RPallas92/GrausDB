@@ -3,7 +3,7 @@ use crate::{
     db_command::{Command, CommandPos},
     io_types::{BufReaderWithPos, BufWriterWithPos},
 };
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use crossbeam_skiplist::SkipMap;
 use std::io::{Read, Seek};
 use std::{
@@ -56,9 +56,12 @@ pub fn load_log(
     let mut pos = reader.seek(SeekFrom::Start(0))?;
     let mut uncompacted = 0; // number of bytes that can be saved after a compaction.
 
-    // Read the entire content into a buffer.
-    let mut buf = Vec::new();
-    reader.read_to_end(&mut buf)?;
+    let file_metadata = reader.get_metadata()?;
+    let file_size = file_metadata.len() as usize;
+
+    let mut buf = BytesMut::with_capacity(file_size);
+    buf.resize(file_size, 0);
+    reader.read_exact(&mut buf)?;
 
     // Create an iterator for deserializing commands.
     let mut deserializer = CommandDeserializer::new(Bytes::from(buf));
