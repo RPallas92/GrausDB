@@ -16,7 +16,7 @@ To use GrausDb in your Rust project, simply add it as a dependency in your `Carg
 
 ```toml
 [dependencies]
-graus_db = "0.1.0"
+graus_db = "0.2.0"
 ```
 
 
@@ -25,24 +25,43 @@ graus_db = "0.1.0"
 Here's a quick example of how to use GrausDb in your Rust application:
 
 ```rust
-let store = GrausDb::open("path")?;
+use graus_db::{GrausDb, Result};
+use bytes::Bytes;
 
-store.set("key".to_owned(), "value".to_owned())?;
+fn main() -> Result<()> {
+    let store = GrausDb::open("path")?;
 
-let val = store.get("key".to_owned())?;
+    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
+
+    let val = store.get(&Bytes::from_static(b"key"))?;
+    if let Some(value) = val {
+        println!("Value: {:?}", value); // Outputs: Value: "value"
+    }
+
+    Ok(())
+}
 ```
 
 It can also be called from multiple threads:
 
 ```rust
-let store = GrausDb::open("path")?;
+use std::thread;
+use graus_db::{GrausDb, Result};
+use bytes::Bytes;
 
-// Calls set method from 8 different threads
-for i in 0..8 {
-    let store = store.clone();
-    thread::spawn(move || {
-        store.set(format!("key{}", i), format!("value{}", i)).unwrap();
-    });
+fn main() -> Result<()> {
+    let store = GrausDb::open("path")?;
+
+    // Calls set method from 8 different threads
+    for i in 0..8 {
+        let store = store.clone();
+        thread::spawn(move || {
+            store.set(Bytes::from(format!("key{}", i)), Bytes::from(format!("value{}", i)))
+                .unwrap();
+        });
+    }
+
+    Ok(())
 }
 ```
 
@@ -74,10 +93,11 @@ The `set` method is used to store a key-value pair in the database.
 
 ```rust
 use graus_db::{GrausDb, Result};
+use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    store.set("key".to_owned(), "value".to_owned())?;
+    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
     // Key "key" now has the value "value" in the database.
     Ok(())
 }
@@ -92,13 +112,14 @@ The `get` method retrieves the value associated with a given key.
 
 ```rust
 use graus_db::{GrausDb, Result};
+use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    store.set("key".to_owned(), "value".to_owned())?;
+    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
     
-    if let Some(value) = store.get("key".to_owned())? {
-        println!("Value: {}", value); // Outputs: "Value: value"
+    if let Some(value) = store.get(&Bytes::from_static(b"key"))? {
+        println!("Value: {:?}", value); // Outputs: Value: "value"
     } else {
         println!("Key not found");
     }
@@ -115,14 +136,16 @@ The `remove` method deletes a key and its associated value from the database.
 
 ```rust
 use graus_db::{GrausDb, Result};
+use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    store.set("key".to_owned(), "value".to_owned())?;
-    store.remove("key".to_owned())?;
+    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
+    store.remove(Bytes::from_static(b"key"))?;
     // Key "key" and its value are now removed from the database.
     Ok(())
 }
+
 ```
 
 
@@ -136,28 +159,36 @@ An optional predicate can be passed, the value will only be updated if the predi
 
 ```rust
 use graus_db::{GrausDb, Result};
+use bytes::{Bytes, BytesMut};
 
 fn main() -> Result<()> {
-    let key = ¨key1¨;
-    store.set(key.to_owned(), "25".to_owned()).unwrap();
+    let store = GrausDb::open("my_database")?;
+    let key = Bytes::from_static(b"key1");
 
-    let update_fn = |value: String| {
-        let num = value.parse::<i32>().unwrap();
-        (num - 1).to_string()
-        };
-    let predicate = |value: String| {
-        let num = value.parse::<i32>().unwrap();
+    // Store an initial value of 25 (encoded as u64 in little-endian byte order)
+    let initial_value = 25u64.to_le_bytes();
+    store.set(key.clone(), Bytes::from_static(&initial_value))?;
+
+    // Update function that decreases the stored value by 1
+    let update_fn = |value: &mut BytesMut| {
+        let num = u64::from_le_bytes(
+            value.as_ref()[..8].try_into().expect("incorrect length"),
+        ) - 1;
+
+        value.copy_from_slice(&num.to_le_bytes());
+    };
+
+    // Predicate function that only applies the update if the value is greater than 0
+    let predicate = |value: &Bytes| {
+        let num = u64::from_le_bytes(value[..8].try_into().expect("incorrect length"));
         num > 0
     };
 
-    let result = store.update_if(
-            key.to_owned(),
-            update_fn,
-            Some(key.to_owned()),
-            Some(predicate),
-    );
+    let result = store.update_if(key.clone(), update_fn, Some(&key), Some(predicate));
     // Key "key1" now has the value "24" in the database.
     // The function was applied because the predicate was met (25 > 0)
+
+    Ok(())
 }
 ```
 
@@ -185,8 +216,6 @@ GrausDb includes built-in benchmarking tools to evaluate its efficiency and to h
 Next features:
 - Multithread benchmark
 - Range get
-- Sync API (journal)
-- Internal threadpool + futures
 
 ## License
 GrausDb is licensed under the MIT License. 
