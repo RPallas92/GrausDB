@@ -8,7 +8,7 @@ categories = [
     "algorithms",
     "asynchronous",
     "data-structures",
-    "distributed-systems",
+    "key-value store",
 ]
 homepage = "https://github.com/rpallas92/GrausDB"
 keywords = ["database", "performance", "data-storage"]
