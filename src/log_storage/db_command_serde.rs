@@ -1,4 +1,3 @@
-use bytes::{Bytes, BytesMut};
 use std::io::{Read, Seek, Write};
 
 use crate::db_command::Command;
@@ -57,18 +56,18 @@ pub(crate) fn deserialize_command<R: Read + Seek>(
     }
 }
 
-fn read_word_from_reader<R: Read + Seek>(reader: &mut BufReaderWithPos<R>) -> Result<Bytes> {
+fn read_word_from_reader<R: Read + Seek>(reader: &mut BufReaderWithPos<R>) -> Result<Vec<u8>> {
     // Read the length of the word as a u32
     let mut len_buf = [0u8; 4];
     reader.read_exact(&mut len_buf)?;
     let word_len = u32::from_be_bytes(len_buf) as usize;
 
     // Read the actual word data
-    let mut word_buf = BytesMut::with_capacity(word_len);
+    let mut word_buf = Vec::with_capacity(word_len as usize);
     word_buf.resize(word_len, 0);
     reader.read_exact(&mut word_buf)?;
 
-    Ok(word_buf.freeze())
+    Ok(word_buf)
 }
 
 pub struct CommandDeserializer<'a, R: Read + Seek> {
@@ -108,8 +107,8 @@ mod tests {
 
     #[test]
     fn test_serde_command() -> Result<()> {
-        let key = Bytes::from_static(b"key value");
-        let set_command = Command::set(key.clone(), Bytes::from_static(b"Ricardo"));
+        let key = b"key value".to_vec();
+        let set_command = Command::set(key.clone(), b"Ricardo".to_vec());
         let remove_command = Command::remove(key);
 
         let mut buffer = Vec::new();

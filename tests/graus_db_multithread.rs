@@ -1,6 +1,5 @@
 use std::thread;
 
-use bytes::{Bytes, BytesMut};
 use graus_db::{GrausDb, Result};
 use std::convert::TryInto;
 use tempfile::TempDir;
@@ -15,8 +14,8 @@ fn concurrent_set() -> Result<()> {
         let handle = thread::spawn(move || {
             store
                 .set(
-                    Bytes::from(format!("key{}", i)),
-                    Bytes::from(format!("value{}", i)),
+                    format!("key{}", i).into_bytes(),
+                    format!("value{}", i).into_bytes(),
                 )
                 .unwrap();
         });
@@ -28,8 +27,8 @@ fn concurrent_set() -> Result<()> {
 
     for i in 0..1000 {
         assert_eq!(
-            store.get(&Bytes::from(format!("key{}", i)))?,
-            Some(Bytes::from(format!("value{}", i)))
+            store.get(format!("key{}", i).as_bytes())?,
+            Some(format!("value{}", i).into_bytes())
         );
     }
 
@@ -38,8 +37,8 @@ fn concurrent_set() -> Result<()> {
     let store = GrausDb::open(temp_dir.path())?;
     for i in 0..1000 {
         assert_eq!(
-            store.get(&Bytes::from(format!("key{}", i)))?,
-            Some(Bytes::from(format!("value{}", i)))
+            store.get(format!("key{}", i).as_bytes())?,
+            Some(format!("value{}", i).into_bytes())
         );
     }
 
@@ -52,8 +51,8 @@ fn concurrent_get() -> Result<()> {
     let store = GrausDb::open(temp_dir.path())?;
     for i in 0..100 {
         store.set(
-            Bytes::from(format!("key{}", i)),
-            Bytes::from(format!("value{}", i)),
+            format!("key{}", i).into_bytes(),
+            format!("value{}", i).into_bytes(),
         )?;
     }
 
@@ -64,8 +63,8 @@ fn concurrent_get() -> Result<()> {
             for i in 0..100 {
                 let key_id = (i + thread_id) % 100;
                 assert_eq!(
-                    store.get(&Bytes::from(format!("key{}", key_id))).unwrap(),
-                    Some(Bytes::from(format!("value{}", key_id)))
+                    store.get(format!("key{}", key_id).as_bytes()).unwrap(),
+                    Some(format!("value{}", key_id).into_bytes())
                 );
             }
         });
@@ -85,8 +84,8 @@ fn concurrent_get() -> Result<()> {
             for i in 0..100 {
                 let key_id = (i + thread_id) % 100;
                 assert_eq!(
-                    store.get(&Bytes::from(format!("key{}", key_id))).unwrap(),
-                    Some(Bytes::from(format!("value{}", key_id)))
+                    store.get(format!("key{}", key_id).as_bytes()).unwrap(),
+                    Some(format!("value{}", key_id).into_bytes())
                 );
             }
         });
@@ -105,19 +104,22 @@ fn concurrent_update_if() -> Result<()> {
     let store = GrausDb::open(temp_dir.path())?;
     let key = "key1";
     let initial_value = 1001u64.to_le_bytes();
-    store.set(Bytes::from(key), Bytes::copy_from_slice(&initial_value))?;
+    store.set(key.as_bytes().to_vec(), initial_value.to_vec())?;
 
     let mut handles = Vec::new();
     for _ in 0..1000 {
         let store = store.clone();
-        let update_fn = |value: &mut BytesMut| {
-            let num =
-                u64::from_le_bytes(value.as_ref()[..8].try_into().expect("incorrect length")) - 1;
-            value.copy_from_slice(&num.to_le_bytes());
+        let update_fn = |value: &mut Vec<u8>| {
+            let num = u64::from_le_bytes(value[..8].try_into().expect("incorrect length")) - 1;
+            value.splice(.., num.to_le_bytes().iter().cloned());
         };
         let handle = thread::spawn(move || {
-            let _ =
-                store.update_if::<_, fn(&Bytes) -> bool>(Bytes::from(key), update_fn, None, None);
+            let _ = store.update_if::<_, fn(&[u8]) -> bool>(
+                key.as_bytes().to_vec(),
+                update_fn,
+                None,
+                None,
+            );
         });
         handles.push(handle);
     }
@@ -128,31 +130,30 @@ fn concurrent_update_if() -> Result<()> {
 
     let expected_value = 1u64.to_le_bytes();
     assert_eq!(
-        store.get(&Bytes::from(key)).unwrap(),
-        Some(Bytes::copy_from_slice(&expected_value))
+        store.get(key.as_bytes()).unwrap(),
+        Some(expected_value.to_vec())
     );
 
     // Test with predicate
     let value = 25u64.to_le_bytes();
-    store.set(Bytes::from(key), Bytes::copy_from_slice(&value))?;
+    store.set(key.as_bytes().to_vec(), value.to_vec())?;
 
     let mut handles = Vec::new();
     for _ in 0..1000 {
         let store = store.clone();
-        let update_fn = |value: &mut BytesMut| {
-            let num =
-                u64::from_le_bytes(value.as_ref()[..8].try_into().expect("incorrect length")) - 1;
-            value.copy_from_slice(&num.to_le_bytes());
+        let update_fn = |value: &mut Vec<u8>| {
+            let num = u64::from_le_bytes(value[..8].try_into().expect("incorrect length")) - 1;
+            value.splice(.., num.to_le_bytes().iter().cloned());
         };
-        let predicate = |value: &Bytes| {
+        let predicate = |value: &[u8]| {
             let num = u64::from_le_bytes(value[..].try_into().expect("incorrect length"));
             num > 0
         };
         let handle = thread::spawn(move || {
-            let _ = store.update_if(
-                Bytes::from(key),
+            let _ = store.update_if::<_, fn(&[u8]) -> bool>(
+                key.as_bytes().to_vec(),
                 update_fn,
-                Some(&Bytes::from(key)),
+                Some(key.as_bytes()),
                 Some(predicate),
             );
         });
@@ -164,16 +165,16 @@ fn concurrent_update_if() -> Result<()> {
 
     let expected_value = 0u64.to_le_bytes();
     assert_eq!(
-        store.get(&Bytes::from(key)).unwrap(),
-        Some(Bytes::copy_from_slice(&expected_value))
+        store.get(key.as_bytes()).unwrap(),
+        Some(expected_value.to_vec())
     );
 
     // Open from disk again and check persistent data
     drop(store);
     let store = GrausDb::open(temp_dir.path())?;
     assert_eq!(
-        store.get(&Bytes::from(key)).unwrap(),
-        Some(Bytes::copy_from_slice(&expected_value))
+        store.get(key.as_bytes()).unwrap(),
+        Some(expected_value.to_vec())
     );
 
     Ok(())

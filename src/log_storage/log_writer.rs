@@ -8,7 +8,6 @@ use crate::{
     io_types::BufWriterWithPos,
 };
 use crate::{GrausError, Result};
-use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
 use log::error;
 use std::{
@@ -29,7 +28,7 @@ const COMPACTION_THRESHOLD: u64 = 1024 * 1024;
 /// there is a write.
 pub struct LogWriter {
     pub writer: BufWriterWithPos<File>,
-    pub index: Arc<SkipMap<Bytes, CommandPos>>,
+    pub index: Arc<SkipMap<Vec<u8>, CommandPos>>,
     pub reader: LogReader,
     pub path: Arc<PathBuf>,
     pub current_log_id: u64,
@@ -37,7 +36,7 @@ pub struct LogWriter {
 }
 
 impl LogWriter {
-    pub fn set(&mut self, key: Bytes, value: Bytes) -> Result<()> {
+    pub fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
         let command = Command::set(key, value);
         let pos = self.writer.pos;
 
@@ -61,7 +60,7 @@ impl LogWriter {
         Ok(())
     }
 
-    pub fn remove(&mut self, key: Bytes) -> Result<()> {
+    pub fn remove(&mut self, key: Vec<u8>) -> Result<()> {
         if !self.index.contains_key(&key) {
             return Err(GrausError::KeyNotFound);
         }
@@ -93,7 +92,7 @@ impl LogWriter {
 
         let mut compaction_writer = new_log_file(&self.path, compaction_log_id)?;
 
-        let mut index_with_updated_positions: HashMap<Bytes, CommandPos> = HashMap::new();
+        let mut index_with_updated_positions: HashMap<Vec<u8>, CommandPos> = HashMap::new();
         // Write compacted entries in compaction log
         let mut new_pos = 0;
         for cmd_pos in self.index.iter() {

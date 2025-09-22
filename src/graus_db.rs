@@ -4,7 +4,6 @@ use crate::log_storage::log_helpers::{get_log_ids, load_log, log_path, new_log_f
 use crate::log_storage::log_reader::LogReader;
 use crate::log_storage::log_writer::LogWriter;
 use crate::{GrausError, Result};
-use bytes::{Bytes, BytesMut};
 use crossbeam_skiplist::SkipMap;
 use std::cell::RefCell;
 use std::fs::{self, File};
@@ -24,19 +23,18 @@ use std::{collections::HashMap, path::PathBuf};
 /// # use graus_db::{GrausDb, Result};
 /// # fn try_main() -> Result<()> {
 /// use std::env::current_dir;
-/// use bytes::Bytes;
 ///
 /// let store = GrausDb::open(current_dir()?)?;
-/// store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
-/// let val = store.get(&Bytes::from_static(b"key"))?;
-/// assert_eq!(val, Some(Bytes::from_static(b"value")));
+/// store.set(b"key".to_vec(), b"value".to_vec())?;
+/// let val = store.get(b"key")?;
+/// assert_eq!(val, Some(b"value".to_vec()));
 /// # Ok(())
 /// # }
 /// ```
 #[derive(Clone)]
 pub struct GrausDb {
     // Index that maps every Key to a position in a log file.
-    index: Arc<SkipMap<Bytes, CommandPos>>,
+    index: Arc<SkipMap<Vec<u8>, CommandPos>>,
     // Writes new data into the file system logs. Protected by a mutex.
     writer: Arc<Mutex<LogWriter>>,
     // Reads data from the file system logs.
@@ -101,14 +99,14 @@ impl GrausDb {
     /// Sets the value of a string key to a string.
     ///
     /// If the key already exists, the previous value will be overwritten.
-    pub fn set(&self, key: Bytes, value: Bytes) -> Result<()> {
+    pub fn set(&self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
         self.writer.lock().unwrap().set(key, value)
     }
 
     /// Gets the string value of a given string key.
     ///
     /// Returns `None` if the given key does not exist.
-    pub fn get(&self, key: &Bytes) -> Result<Option<Bytes>> {
+    pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         if let Some(cmd_pos) = self.index.get(key) {
             if let Command::Set { value, .. } = self.reader.read_command(*cmd_pos.value())? {
                 Ok(Some(value))
@@ -123,7 +121,7 @@ impl GrausDb {
     /// Removes a given key.
     ///
     /// Returns GrausError::KeyNotFound if the key does not exist.
-    pub fn remove(&self, key: Bytes) -> Result<()> {
+    pub fn remove(&self, key: Vec<u8>) -> Result<()> {
         self.writer.lock().unwrap().remove(key)
     }
 
@@ -133,14 +131,14 @@ impl GrausDb {
     /// is not satisfied for predicate_key.
     pub fn update_if<F, P>(
         &self,
-        key: Bytes,
+        key: Vec<u8>,
         update_fn: F,
-        predicate_key: Option<&Bytes>,
+        predicate_key: Option<&[u8]>,
         predicate: Option<P>,
     ) -> Result<()>
     where
-        F: FnOnce(&mut BytesMut),
-        P: FnOnce(&Bytes) -> bool,
+        F: FnOnce(&mut Vec<u8>),
+        P: FnOnce(&[u8]) -> bool,
     {
         let mut writer = self.writer.lock().unwrap();
         let current_value = self.get(&key)?;
@@ -158,8 +156,8 @@ impl GrausDb {
             }
         }
 
-        let mut current_value_mut = BytesMut::from(current_value);
+        let mut current_value_mut = current_value;
         update_fn(&mut current_value_mut);
-        writer.set(key, current_value_mut.freeze())
+        writer.set(key, current_value_mut)
     }
 }

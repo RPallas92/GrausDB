@@ -1,20 +1,18 @@
 use std::ops::Range;
 
-use bytes::Bytes;
-
 /// Struct representing a command to the database.
 #[derive(Debug, PartialEq)]
 pub enum Command {
-    Set { key: Bytes, value: Bytes },
-    Remove { key: Bytes },
+    Set { key: Vec<u8>, value: Vec<u8> },
+    Remove { key: Vec<u8> },
 }
 
 impl Command {
-    pub fn set(key: Bytes, value: Bytes) -> Command {
+    pub fn set(key: Vec<u8>, value: Vec<u8>) -> Command {
         Command::Set { key, value }
     }
 
-    pub fn remove(key: Bytes) -> Command {
+    pub fn remove(key: Vec<u8>) -> Command {
         Command::Remove { key }
     }
 }

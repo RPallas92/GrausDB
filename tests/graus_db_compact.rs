@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use graus_db::{GrausDb, Result};
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -26,7 +25,7 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         for key_id in 0..10 {
             let key = format!("key{}", key_id);
             let value = format!("{}", iter);
-            store.set(Bytes::from(key), Bytes::from(value))?;
+            store.set(key.into_bytes(), value.into_bytes())?;
         }
 
         let new_size = dir_size();
@@ -38,8 +37,8 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         for key_id in 0..10 {
             let key = format!("key{}", key_id);
             assert_eq!(
-                store.get(&Bytes::from(key))?,
-                Some(Bytes::from(format!("{}", iter)))
+                store.get(key.as_bytes())?,
+                Some(format!("{}", iter).into_bytes())
             );
         }
 
@@ -49,8 +48,8 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         for key_id in 0..10 {
             let key = format!("key{}", key_id);
             assert_eq!(
-                store.get(&Bytes::from(key))?,
-                Some(Bytes::from(format!("{}", iter)))
+                store.get(key.as_bytes())?,
+                Some(format!("{}", iter).into_bytes())
             );
         }
         return Ok(());

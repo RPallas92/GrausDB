@@ -1,10 +1,15 @@
 [package]
 name = "graus-db"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ricardo Pallas Roman <rpallas92@gmail.com>"]
 description = "A high-performance, thread-safe key-value embedded data store."
 edition = "2021"
-categories = ["algorithms", "asynchronous", "data-structures", "distributed-systems"]
+categories = [
+    "algorithms",
+    "asynchronous",
+    "data-structures",
+    "distributed-systems",
+]
 homepage = "https://github.com/rpallas92/GrausDB"
 keywords = ["database", "performance", "data-storage"]
 license = "MIT/Apache-2.0"
@@ -13,7 +18,6 @@ documentation = "https://github.com/rpallas92/GrausDB"
 readme = "README.md"
 
 [dependencies]
-bytes = "1.8.0"
 crossbeam-skiplist = "0.1"
 log = "0.4.6"
 thiserror = "1.0"

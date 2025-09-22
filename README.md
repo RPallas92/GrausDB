@@ -16,7 +16,7 @@ To use GrausDb in your Rust project, simply add it as a dependency in your `Carg
 
 ```toml
 [dependencies]
-graus_db = "0.2.0"
+graus_db = "0.2.1"
 ```
 
 
@@ -26,14 +26,13 @@ Here's a quick example of how to use GrausDb in your Rust application:
 
 ```rust
 use graus_db::{GrausDb, Result};
-use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("path")?;
 
-    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
+    store.set(b"key".to_vec(), b"value".to_vec())?;
 
-    let val = store.get(&Bytes::from_static(b"key"))?;
+    let val = store.get(b"key")?;
     if let Some(value) = val {
         println!("Value: {:?}", value); // Outputs: Value: "value"
     }
@@ -47,7 +46,6 @@ It can also be called from multiple threads:
 ```rust
 use std::thread;
 use graus_db::{GrausDb, Result};
-use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("path")?;
@@ -56,7 +54,7 @@ fn main() -> Result<()> {
     for i in 0..8 {
         let store = store.clone();
         thread::spawn(move || {
-            store.set(Bytes::from(format!("key{}", i)), Bytes::from(format!("value{}", i)))
+            store.set(format!("key{}", i).into_bytes(), format!("value{}", i).into_bytes())
                 .unwrap();
         });
     }
@@ -93,11 +91,10 @@ The `set` method is used to store a key-value pair in the database.
 
 ```rust
 use graus_db::{GrausDb, Result};
-use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
+    store.set(b"key".to_vec(), b"value".to_vec())?;
     // Key "key" now has the value "value" in the database.
     Ok(())
 }
@@ -112,13 +109,12 @@ The `get` method retrieves the value associated with a given key.
 
 ```rust
 use graus_db::{GrausDb, Result};
-use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
+    store.set(b"key".to_vec(), b"value".to_vec())?;
     
-    if let Some(value) = store.get(&Bytes::from_static(b"key"))? {
+    if let Some(value) = store.get(b"key")? {
         println!("Value: {:?}", value); // Outputs: Value: "value"
     } else {
         println!("Key not found");
@@ -136,12 +132,11 @@ The `remove` method deletes a key and its associated value from the database.
 
 ```rust
 use graus_db::{GrausDb, Result};
-use bytes::Bytes;
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    store.set(Bytes::from_static(b"key"), Bytes::from_static(b"value"))?;
-    store.remove(Bytes::from_static(b"key"))?;
+    store.set(b"key".to_vec(), b"value".to_vec())?;
+    store.remove(b"key".to_vec())?;
     // Key "key" and its value are now removed from the database.
     Ok(())
 }
@@ -159,27 +154,26 @@ An optional predicate can be passed, the value will only be updated if the predi
 
 ```rust
 use graus_db::{GrausDb, Result};
-use bytes::{Bytes, BytesMut};
 
 fn main() -> Result<()> {
     let store = GrausDb::open("my_database")?;
-    let key = Bytes::from_static(b"key1");
+    let key = b"key1".to_vec();
 
     // Store an initial value of 25 (encoded as u64 in little-endian byte order)
     let initial_value = 25u64.to_le_bytes();
-    store.set(key.clone(), Bytes::from_static(&initial_value))?;
+    store.set(key.clone(), initial_value.to_vec())?;
 
     // Update function that decreases the stored value by 1
-    let update_fn = |value: &mut BytesMut| {
+    let update_fn = |value: &mut Vec<u8>| {
         let num = u64::from_le_bytes(
-            value.as_ref()[..8].try_into().expect("incorrect length"),
+            value[..8].try_into().expect("incorrect length"),
         ) - 1;
 
-        value.copy_from_slice(&num.to_le_bytes());
+        *value = num.to_le_bytes().to_vec();
     };
 
     // Predicate function that only applies the update if the value is greater than 0
-    let predicate = |value: &Bytes| {
+    let predicate = |value: &[u8]| {
         let num = u64::from_le_bytes(value[..8].try_into().expect("incorrect length"));
         num > 0
     };
@@ -227,5 +221,3 @@ Happy coding with GrausDb!
 GrausDb is created and maintained by **Ricardo Pallas**.
 
 Website: [https://rpallas92.github.io/](https://rpallas92.github.io/)
-
-

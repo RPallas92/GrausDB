@@ -3,7 +3,6 @@ use crate::{
     db_command::{Command, CommandPos},
     io_types::{BufReaderWithPos, BufWriterWithPos},
 };
-use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
 use std::io::Seek;
 use std::{
@@ -51,7 +50,7 @@ pub fn new_log_file(path: &Path, log_id: u64) -> Result<BufWriterWithPos<File>> 
 pub fn load_log(
     log_id: u64,
     reader: &mut BufReaderWithPos<File>,
-    index: &SkipMap<Bytes, CommandPos>,
+    index: &SkipMap<Vec<u8>, CommandPos>,
 ) -> Result<u64> {
     let mut pos = reader.seek(SeekFrom::Start(0))?;
     let mut uncompacted = 0; // number of bytes that can be saved after a compaction.
