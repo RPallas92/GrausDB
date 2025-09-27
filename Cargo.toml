@@ -1,6 +1,6 @@
 [package]
 name = "graus-db"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Ricardo Pallas Roman <rpallas92@gmail.com>"]
 description = "A high-performance, thread-safe key-value embedded data store."
 edition = "2021"
