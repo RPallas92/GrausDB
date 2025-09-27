@@ -5,8 +5,8 @@ use tempfile::TempDir;
 fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set(b"key1".to_vec(), b"value1".to_vec())?;
-    store.set(b"key2".to_vec(), b"value2".to_vec())?;
+    store.set(b"key1".to_vec(), b"value1")?;
+    store.set(b"key2".to_vec(), b"value2")?;
 
     let update_fn = |value: &mut Vec<u8>| {
         for byte in value.iter_mut() {
@@ -28,7 +28,7 @@ fn update_if_updates_existing_data_when_predicate_is_satisfied() -> Result<()> {
 fn update_if_updates_existing_data_when_no_predicate() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set(b"key1".to_vec(), b"value1".to_vec())?;
+    store.set(b"key1".to_vec(), b"value1")?;
 
     let update_fn = |value: &mut Vec<u8>| {
         for byte in value.iter_mut() {
@@ -49,8 +49,8 @@ fn update_if_returns_predicate_error_when_predicate_is_not_satisfied_for_existin
 ) -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let store = GrausDb::open(temp_dir.path())?;
-    store.set(b"key1".to_vec(), b"value1".to_vec())?;
-    store.set(b"key2".to_vec(), b"value2".to_vec())?;
+    store.set(b"key1".to_vec(), b"value1")?;
+    store.set(b"key2".to_vec(), b"value2")?;
 
     let update_fn = |value: &mut Vec<u8>| {
         for byte in value.iter_mut() {

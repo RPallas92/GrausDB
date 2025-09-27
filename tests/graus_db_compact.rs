@@ -25,7 +25,7 @@ fn data_is_compacted_when_limit_reached() -> Result<()> {
         for key_id in 0..10 {
             let key = format!("key{}", key_id);
             let value = format!("{}", iter);
-            store.set(key.into_bytes(), value.into_bytes())?;
+            store.set(key.into_bytes(), &value.into_bytes())?;
         }
 
         let new_size = dir_size();

@@ -1,4 +1,4 @@
-use crate::db_command::{Command, CommandPos};
+use crate::db_command::{CommandOwned, CommandPos};
 use crate::io_types::BufReaderWithPos;
 use crate::log_storage::log_helpers::{get_log_ids, load_log, log_path, new_log_file};
 use crate::log_storage::log_reader::LogReader;
@@ -25,7 +25,7 @@ use std::{collections::HashMap, path::PathBuf};
 /// use std::env::current_dir;
 ///
 /// let store = GrausDb::open(current_dir()?)?;
-/// store.set(b"key".to_vec(), b"value".to_vec())?;
+/// store.set(b"key".to_vec(), b"value")?;
 /// let val = store.get(b"key")?;
 /// assert_eq!(val, Some(b"value".to_vec()));
 /// # Ok(())
@@ -40,10 +40,6 @@ pub struct GrausDb {
     // Reads data from the file system logs.
     reader: LogReader,
 }
-
-// TODO Ricardo update DOCS as now we don't use Strings
-
-// TODO Ricardo add clippy as linter
 
 impl GrausDb {
     /// Opens a `GrausDb` with the given path.
@@ -99,7 +95,7 @@ impl GrausDb {
     /// Sets the value of a string key to a string.
     ///
     /// If the key already exists, the previous value will be overwritten.
-    pub fn set(&self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
+    pub fn set(&self, key: Vec<u8>, value: &[u8]) -> Result<()> {
         self.writer.lock().unwrap().set(key, value)
     }
 
@@ -108,7 +104,7 @@ impl GrausDb {
     /// Returns `None` if the given key does not exist.
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         if let Some(cmd_pos) = self.index.get(key) {
-            if let Command::Set { value, .. } = self.reader.read_command(*cmd_pos.value())? {
+            if let CommandOwned::Set { value, .. } = self.reader.read_command(*cmd_pos.value())? {
                 Ok(Some(value))
             } else {
                 Err(GrausError::UnexpectedCommandType)
@@ -121,7 +117,7 @@ impl GrausDb {
     /// Removes a given key.
     ///
     /// Returns GrausError::KeyNotFound if the key does not exist.
-    pub fn remove(&self, key: Vec<u8>) -> Result<()> {
+    pub fn remove(&self, key: &[u8]) -> Result<()> {
         self.writer.lock().unwrap().remove(key)
     }
 
@@ -158,6 +154,6 @@ impl GrausDb {
 
         let mut current_value_mut = current_value;
         update_fn(&mut current_value_mut);
-        writer.set(key, current_value_mut)
+        writer.set(key, &current_value_mut)
     }
 }

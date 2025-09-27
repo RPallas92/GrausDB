@@ -1,6 +1,6 @@
 use crate::Result;
 use crate::{
-    db_command::{Command, CommandPos},
+    db_command::{CommandOwned, CommandPos},
     io_types::{BufReaderWithPos, BufWriterWithPos},
 };
 use crossbeam_skiplist::SkipMap;
@@ -63,7 +63,7 @@ pub fn load_log(
         let new_pos = deserializer.pos as u64;
         let command = command?;
         match command {
-            Command::Set { key, .. } => {
+            CommandOwned::Set { key, .. } => {
                 let old_cmd = index.insert(
                     key,
                     CommandPos {
@@ -74,7 +74,7 @@ pub fn load_log(
                 );
                 uncompacted += old_cmd.value().len;
             }
-            Command::Remove { key } => {
+            CommandOwned::Remove { key } => {
                 if let Some(old_cmd) = index.remove(&key) {
                     uncompacted += old_cmd.value().len;
                 }

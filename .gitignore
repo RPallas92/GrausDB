@@ -8,3 +8,5 @@ target/
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
+
+examples/zero_copy_struct_serde/grausdb_data

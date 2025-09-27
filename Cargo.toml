@@ -26,3 +26,6 @@ walkdir = "2.2.7"
 [[bench]]
 name = "graus_db_single_thread"
 harness = false
+
+[workspace]
+members = ["examples/zero_copy_struct_serde"]

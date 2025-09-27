@@ -4,7 +4,7 @@ use super::{
     log_reader::LogReader,
 };
 use crate::{
-    db_command::{Command, CommandPos},
+    db_command::{CommandPos, CommandRef},
     io_types::BufWriterWithPos,
 };
 use crate::{GrausError, Result};
@@ -36,23 +36,21 @@ pub struct LogWriter {
 }
 
 impl LogWriter {
-    pub fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
-        let command = Command::set(key, value);
+    pub fn set(&mut self, key: Vec<u8>, value: &[u8]) -> Result<()> {
+        let command_ref = CommandRef::set(&key, value);
         let pos = self.writer.pos;
 
-        serialize_command(&command, &mut self.writer)?;
+        serialize_command(&command_ref, &mut self.writer)?;
 
-        if let Command::Set { key, .. } = command {
-            if let Some(old_cmd) = self.index.get(&key) {
-                self.uncompacted += old_cmd.value().len;
-            }
-            let command_pos = CommandPos {
-                log_id: self.current_log_id,
-                pos,
-                len: self.writer.pos - pos,
-            };
-            self.index.insert(key, command_pos);
+        if let Some(old_cmd) = self.index.get(&key) {
+            self.uncompacted += old_cmd.value().len;
         }
+        let command_pos = CommandPos {
+            log_id: self.current_log_id,
+            pos,
+            len: self.writer.pos - pos,
+        };
+        self.index.insert(key, command_pos);
 
         if self.uncompacted > COMPACTION_THRESHOLD {
             self.compact()?;
@@ -60,18 +58,18 @@ impl LogWriter {
         Ok(())
     }
 
-    pub fn remove(&mut self, key: Vec<u8>) -> Result<()> {
-        if !self.index.contains_key(&key) {
+    pub fn remove(&mut self, key: &[u8]) -> Result<()> {
+        if !self.index.contains_key(key) {
             return Err(GrausError::KeyNotFound);
         }
 
-        let command = Command::remove(key);
+        let command_ref = CommandRef::remove(key);
         let pos = self.writer.pos;
 
-        serialize_command(&command, &mut self.writer)?;
+        serialize_command(&command_ref, &mut self.writer)?;
 
-        if let Command::Remove { key } = command {
-            let old_cmd = self.index.remove(&key).expect("key not found");
+        {
+            let old_cmd = self.index.remove(key).expect("key not found");
             self.uncompacted += old_cmd.value().len;
             // the "remove" command itself can be deleted in the next compaction
             // so we add its length to `uncompacted`

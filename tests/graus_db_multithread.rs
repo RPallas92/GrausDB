@@ -15,7 +15,7 @@ fn concurrent_set() -> Result<()> {
             store
                 .set(
                     format!("key{}", i).into_bytes(),
-                    format!("value{}", i).into_bytes(),
+                    &format!("value{}", i).into_bytes(),
                 )
                 .unwrap();
         });
@@ -52,7 +52,7 @@ fn concurrent_get() -> Result<()> {
     for i in 0..100 {
         store.set(
             format!("key{}", i).into_bytes(),
-            format!("value{}", i).into_bytes(),
+            &format!("value{}", i).into_bytes(),
         )?;
     }
 
@@ -104,7 +104,7 @@ fn concurrent_update_if() -> Result<()> {
     let store = GrausDb::open(temp_dir.path())?;
     let key = "key1";
     let initial_value = 1001u64.to_le_bytes();
-    store.set(key.as_bytes().to_vec(), initial_value.to_vec())?;
+    store.set(key.as_bytes().to_vec(), &initial_value.to_vec())?;
 
     let mut handles = Vec::new();
     for _ in 0..1000 {
@@ -136,7 +136,7 @@ fn concurrent_update_if() -> Result<()> {
 
     // Test with predicate
     let value = 25u64.to_le_bytes();
-    store.set(key.as_bytes().to_vec(), value.to_vec())?;
+    store.set(key.as_bytes().to_vec(), &value.to_vec())?;
 
     let mut handles = Vec::new();
     for _ in 0..1000 {

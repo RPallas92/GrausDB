@@ -1,19 +1,36 @@
 use std::ops::Range;
 
-/// Struct representing a command to the database.
-#[derive(Debug, PartialEq)]
-pub enum Command {
+/// Struct representing an owned command to the database.
+#[derive(Debug, PartialEq, Clone)]
+pub enum CommandOwned {
     Set { key: Vec<u8>, value: Vec<u8> },
     Remove { key: Vec<u8> },
 }
 
-impl Command {
-    pub fn set(key: Vec<u8>, value: Vec<u8>) -> Command {
-        Command::Set { key, value }
+impl CommandOwned {
+    pub fn set(key: Vec<u8>, value: Vec<u8>) -> CommandOwned {
+        CommandOwned::Set { key, value }
     }
 
-    pub fn remove(key: Vec<u8>) -> Command {
-        Command::Remove { key }
+    pub fn remove(key: Vec<u8>) -> CommandOwned {
+        CommandOwned::Remove { key }
+    }
+}
+
+/// Struct representing a borrowed command to the database.
+#[derive(Debug, PartialEq)]
+pub enum CommandRef<'a> {
+    Set { key: &'a [u8], value: &'a [u8] },
+    Remove { key: &'a [u8] },
+}
+
+impl<'a> CommandRef<'a> {
+    pub fn set(key: &'a [u8], value: &'a [u8]) -> CommandRef<'a> {
+        CommandRef::Set { key, value }
+    }
+
+    pub fn remove(key: &'a [u8]) -> CommandRef<'a> {
+        CommandRef::Remove { key }
     }
 }
 /// Struct representing the position of a command in a given file.

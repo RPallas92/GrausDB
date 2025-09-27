@@ -1,6 +1,6 @@
 use super::db_command_serde::deserialize_command;
 use super::log_helpers::log_path;
-use crate::db_command::Command;
+use crate::db_command::CommandOwned;
 use crate::Result;
 use crate::{db_command::CommandPos, io_types::BufReaderWithPos};
 use std::io::Seek;
@@ -66,7 +66,7 @@ impl LogReader {
         f(reader)
     }
 
-    pub fn read_command(&self, cmd_pos: CommandPos) -> Result<Command> {
+    pub fn read_command(&self, cmd_pos: CommandPos) -> Result<CommandOwned> {
         self.read_and(cmd_pos, |reader| deserialize_command(reader))
     }
 }

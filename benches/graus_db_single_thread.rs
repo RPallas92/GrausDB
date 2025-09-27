@@ -16,7 +16,7 @@ fn set_bench(c: &mut Criterion) {
                 let value = b"value".to_vec();
                 for i in 1..(1 << 12) {
                     store
-                        .set(format!("key{}", i).into_bytes(), value.clone())
+                        .set(format!("key{}", i).into_bytes(), &value.clone())
                         .unwrap();
                 }
             },
@@ -36,7 +36,7 @@ fn update_if_bench(c: &mut Criterion) {
                 let key = b"key1".to_vec();
                 let value: u64 = 3500;
                 store
-                    .set(key.clone(), value.to_be_bytes().to_vec())
+                    .set(key.clone(), &value.to_le_bytes().to_vec())
                     .unwrap();
                 (store, temp_dir, key)
             },
@@ -75,7 +75,7 @@ fn get_bench(c: &mut Criterion) {
             let value = b"value".to_vec();
             for key_i in 1..(1 << i) {
                 store
-                    .set(format!("key{}", key_i).into_bytes(), value.clone())
+                    .set(format!("key{}", key_i).into_bytes(), &value.clone())
                     .unwrap();
             }
             let mut rng = SmallRng::from_seed([0; 16]);
