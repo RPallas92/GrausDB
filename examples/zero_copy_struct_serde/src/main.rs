@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // In a real benchmark, you might want to assert values or perform some operation
         // to ensure the data is correctly loaded, but for a simple performance test,
-        // just loading and accessing is sufficient.
+        // just loading and accessing is sufficient to test deserialization.
         let _ = loaded_buf_for_name.load(loaded_product.name)?;
 
         decrease_stock(key.clone(), &db)?;
