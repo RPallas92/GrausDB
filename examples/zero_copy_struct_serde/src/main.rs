@@ -1,7 +1,9 @@
 use graus_db::GrausDb;
 use musli_zerocopy::{endian, Buf, OwnedBuf, Ref, ZeroCopy};
 use std::error::Error;
+use std::fs;
 use std::mem;
+use std::time::Instant;
 
 /// Represents a product with a stock count and a name.
 /// `#[derive(ZeroCopy)]` enables zero-copy serialization/deserialization with `musli-zerocopy`.
@@ -45,50 +47,58 @@ impl Product {
     }
 }
 
+const ITERATIONS: usize = 20_000;
+
 /// Main function to demonstrate GrausDB usage with zero-copy serialization/deserialization structs.
 /// It opens a database, sets a product, retrieves it, decreases its stock, and retrieves it again.
 fn main() -> Result<(), Box<dyn Error>> {
     let db_path = "./grausdb_data";
+    let _ = fs::remove_dir_all(db_path); // Just to clean up previous database data (if it exists)
     let db = GrausDb::open(db_path)?;
 
     println!("GrausDB opened at ='{:?}'", db_path);
 
     // Create a Product and serialize it into an OwnedBuf using zero-copy.
-    let product_buf = Product::to_bytes(42, "Yeezy Boost 350 V2");
+    let product_buf = Product::to_bytes(ITERATIONS as u16 + 1, "Yeezy Boost 350 V2");
 
     // Define a key for the product and store it in the database.
     let key = b"yeezy".to_vec();
     db.set(key.clone(), &product_buf[..])?;
 
-    // Retrieve the product bytes from the database.
-    let loaded_bytes = db.get(&key)?.expect("Value not found");
-    // Deserialize the bytes back into a `Product` reference using zero-copy.
-    let loaded_product = Product::from_bytes(&loaded_bytes);
+    let start_time = Instant::now();
 
-    // To access the name, which is a `Ref<str>`, we still need the original buffer.
-    // This is a limitation of `Ref<str>` and zero-copy deserialization:
-    // the `loaded_product` itself contains a `Ref<str>`, which needs a `Buf` to resolve
-    // the actual string slice from the underlying byte buffer.
-    let loaded_buf_for_name = Buf::new(&loaded_bytes);
+    for _i in 0..ITERATIONS {
+        // Retrieve the product bytes from the database.
+        let loaded_bytes = db.get(&key)?.expect("Value not found");
+        // Deserialize the bytes back into a `Product` reference using zero-copy.
+        let loaded_product = Product::from_bytes(&loaded_bytes);
+
+        // To access the name, which is a `Ref<str>`, we still need the original buffer.
+        // This is a limitation of `Ref<str>` and zero-copy deserialization:
+        // the `loaded_product` itself contains a `Ref<str>`, which needs a `Buf` to resolve
+        // the actual string slice from the underlying byte buffer.
+        let loaded_buf_for_name = Buf::new(&loaded_bytes);
+
+        // In a real benchmark, you might want to assert values or perform some operation
+        // to ensure the data is correctly loaded, but for a simple performance test,
+        // just loading and accessing is sufficient.
+        let _ = loaded_buf_for_name.load(loaded_product.name)?;
+
+        decrease_stock(key.clone(), &db)?;
+    }
+
+    let duration = start_time.elapsed();
+    println!("Benchmark completed in {:?}", duration);
+
+    // Final check after benchmark
+    let loaded_bytes_final = db.get(&key)?.expect("Value not found after benchmark");
+    let loaded_product_final = Product::from_bytes(&loaded_bytes_final);
+    let loaded_buf_for_name_final = Buf::new(&loaded_bytes_final);
 
     println!(
-        "Loaded Product: stock = {}, name = {}",
-        loaded_product.stock,
-        loaded_buf_for_name.load(loaded_product.name)? // Resolve the `Ref<str>` to `&str`.
-    );
-
-    println!("Decreasing stock...");
-    decrease_stock(key.clone(), &db)?;
-
-    // Retrieve the product bytes again after the stock has been decreased.
-    let loaded_bytes_after_decrease = db.get(&key)?.expect("Value not found after decrease");
-    let loaded_product_after_decrease = Product::from_bytes(&loaded_bytes_after_decrease);
-    let loaded_buf_for_name_after_decrease = Buf::new(&loaded_bytes_after_decrease);
-
-    println!(
-        "Loaded Product after decrease: stock = {}, name = {}",
-        loaded_product_after_decrease.stock,
-        loaded_buf_for_name_after_decrease.load(loaded_product_after_decrease.name)?
+        "Final Product state: stock = {}, name = {}",
+        loaded_product_final.stock,
+        loaded_buf_for_name_final.load(loaded_product_final.name)?
     );
 
     Ok(())
