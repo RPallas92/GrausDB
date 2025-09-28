@@ -246,6 +246,8 @@ version = "0.1.0"
 dependencies = [
  "graus-db",
  "musli-zerocopy",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 
